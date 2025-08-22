@@ -1,0 +1,321 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>WebGL HSL Editor</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 16px; }
+    .controls { display: grid; gap: 10px; max-width: 600px; }
+    .row { display: grid; grid-template-columns: 160px 1fr 60px; gap: 10px; align-items: center; }
+    canvas { display: block; max-width: 100%; margin-top: 16px; border-radius: 8px; }
+    button { padding: 8px 14px; border-radius: 8px; border: 0; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+    input[type="range"] { width: 100%; }
+  </style>
+</head>
+<body>
+  <h1>HSL (WebGL) — instant preview</h1>
+
+  <div class="controls">
+    <div class="row">
+      <label>Image:</label>
+      <input type="file" id="fileInput" accept="image/*" />
+      <span></span>
+    </div>
+
+    <div class="row">
+      <label>Hue shift (°):</label>
+      <input type="range" id="hue" min="-180" max="180" value="0" step="1" />
+      <span id="hueVal">0</span>
+    </div>
+
+    <div class="row">
+      <label>Saturation scale:</label>
+      <input type="range" id="sat" min="0" max="2" value="1" step="0.05" />
+      <span id="satVal">1.00</span>
+    </div>
+
+    <div class="row">
+      <label>Lightness scale:</label>
+      <input type="range" id="light" min="0" max="2" value="1" step="0.05" />
+      <span id="lightVal">1.00</span>
+    </div>
+
+    <div class="row">
+      <label></label>
+      <div style="display:flex; gap:10px;">
+        <button id="uploadBtn">Upload to backend</button>
+        <button id="exportBtn">Export full-res (backend)</button>
+      </div>
+      <span id="status"></span>
+    </div>
+  </div>
+
+  <canvas id="glcanvas" width="800" height="600"></canvas>
+
+  <script>
+    // ---------- WebGL boilerplate ----------
+    const canvas = document.getElementById('glcanvas');
+    const canvasWidth = 800;
+    const canvasHeight = 600;
+
+
+    // Load image and create thumbnail
+    let img = new Image();
+    document.getElementById("fileInput").onchange = e => {
+    img.src = URL.createObjectURL(e.target.files[0]);
+    };
+    // createThumbnail(img, maxSize = 1024);
+    img.onload = () => {
+    imgWidth = img.width;
+    imgHeight = img.height;
+    initWebGL();
+    // createThumbnail()
+    }
+
+
+    // Zoom & Pan
+    canvas.addEventListener("wheel", e => {
+    e.preventDefault();
+    zoom *= e.deltaY > 0 ? 0.9 : 1.1;
+    drawImage();
+    });
+
+    canvas.addEventListener("mousedown", e => {
+    isDragging = true;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    });
+    canvas.addEventListener("mousemove", e => {
+    if (isDragging) {
+        offsetX += (e.clientX - lastX) / zoom;
+        offsetY += (e.clientY - lastY) / zoom;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        drawImage();
+    }
+    });
+    canvas.addEventListener("mouseup", () => isDragging = false);
+    canvas.addEventListener("mouseleave", () => isDragging = false);
+
+    const gl = canvas.getContext('webgl', { premultipliedAlpha: false, alpha: false });
+    if (!gl) { alert('WebGL not supported'); }
+
+    const vsSrc = `
+      attribute vec2 a_pos;
+      attribute vec2 a_uv;
+      varying vec2 v_uv;
+      void main() {
+        v_uv = a_uv;
+        gl_Position = vec4(a_pos, 0.0, 1.0);
+      }
+    `;
+
+    // Fragment shader: RGB -> HSL -> adjust -> RGB
+    const fsSrc = `
+      precision mediump float;
+      varying vec2 v_uv;
+      uniform sampler2D u_tex;
+      uniform float u_hue;       // degrees
+      uniform float u_satScale;  // 0..2
+      uniform float u_ligScale;  // 0..2
+
+      // rgb [0..1] -> hsl [0..1]
+      vec3 rgb2hsl(vec3 c){
+        float maxc = max(max(c.r, c.g), c.b);
+        float minc = min(min(c.r, c.g), c.b);
+        float h = 0.0;
+        float s = 0.0;
+        float l = (maxc + minc) * 0.5;
+        if(maxc != minc){
+          float d = maxc - minc;
+          s = l > 0.5 ? d / (2.0 - maxc - minc) : d / (maxc + minc);
+          if(maxc == c.r)      h = (c.g - c.b) / d + (c.g < c.b ? 6.0 : 0.0);
+          else if(maxc == c.g) h = (c.b - c.r) / d + 2.0;
+          else                 h = (c.r - c.g) / d + 4.0;
+          h /= 6.0;
+        }
+        return vec3(h, s, l);
+      }
+
+      float hue2rgb(float p, float q, float t){
+        if(t < 0.0) t += 1.0;
+        if(t > 1.0) t -= 1.0;
+        if(t < 1.0/6.0) return p + (q - p) * 6.0 * t;
+        if(t < 1.0/2.0) return q;
+        if(t < 2.0/3.0) return p + (q - p) * (2.0/3.0 - t) * 6.0;
+        return p;
+      }
+
+      vec3 hsl2rgb(vec3 hsl){
+        float h = hsl.x; float s = hsl.y; float l = hsl.z;
+        if(s == 0.0) return vec3(l);
+        float q = l < 0.5 ? l*(1.0+s) : l + s - l*s;
+        float p = 2.0*l - q;
+        return vec3(
+          hue2rgb(p,q,h + 1.0/3.0),
+          hue2rgb(p,q,h),
+          hue2rgb(p,q,h - 1.0/3.0)
+        );
+      }
+
+      void main(){
+        vec4 tex = texture2D(u_tex, v_uv);
+        vec3 hsl = rgb2hsl(tex.rgb);
+
+        // hue shift in turns (deg / 360)
+        hsl.x = fract(hsl.x + (u_hue / 360.0));
+        hsl.y = clamp(hsl.y * u_satScale, 0.0, 1.0);
+        hsl.z = clamp(hsl.z * u_ligScale, 0.0, 1.0);
+
+        vec3 rgb = hsl2rgb(hsl);
+        gl_FragColor = vec4(rgb, tex.a);
+      }
+    `;
+
+    function compile(type, src){
+      const sh = gl.createShader(type);
+      gl.shaderSource(sh, src);
+      gl.compileShader(sh);
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+        throw new Error(gl.getShaderInfoLog(sh));
+      }
+      return sh;
+    }
+
+    function program(vs, fs){
+      const p = gl.createProgram();
+      gl.attachShader(p, vs);
+      gl.attachShader(p, fs);
+      gl.linkProgram(p);
+      if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+        throw new Error(gl.getProgramInfoLog(p));
+      }
+      return p;
+    }
+
+    const prog = program(compile(gl.VERTEX_SHADER, vsSrc), compile(gl.FRAGMENT_SHADER, fsSrc));
+    gl.useProgram(prog);
+
+    // Fullscreen quad
+    const quad = new Float32Array([
+      // pos   // uv
+      -1, -1,  0, 0,
+       1, -1,  1, 0,
+      -1,  1,  0, 1,
+       1,  1,  1, 1,
+    ]);
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
+
+    const a_pos = gl.getAttribLocation(prog, 'a_pos');
+    const a_uv  = gl.getAttribLocation(prog, 'a_uv');
+    gl.enableVertexAttribArray(a_pos);
+    gl.enableVertexAttribArray(a_uv);
+    gl.vertexAttribPointer(a_pos, 2, gl.FLOAT, false, 16, 0);
+    gl.vertexAttribPointer(a_uv,  2, gl.FLOAT, false, 16, 8);
+
+    // Uniforms
+    const u_tex = gl.getUniformLocation(prog, 'u_tex');
+    const u_hue = gl.getUniformLocation(prog, 'u_hue');
+    const u_sat = gl.getUniformLocation(prog, 'u_satScale');
+    const u_lig = gl.getUniformLocation(prog, 'u_ligScale');
+
+    let tex = null;
+    let imgWidth = 0, imgHeight = 0;
+    function setTextureFromImageBitmap(bmp){
+      imgWidth = bmp.width; imgHeight = bmp.height;
+
+      // fit canvas to image (keeps sharpness)
+      canvas.width = imgWidth;
+      canvas.height = imgHeight;
+      gl.viewport(0, 0, canvas.width, canvas.height);
+
+      if (!tex) tex = gl.createTexture();
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bmp);
+
+      draw(); // initial
+    }
+
+    function draw(){
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.uniform1i(u_tex, 0);
+      gl.uniform1f(u_hue,  Number(hue.value));
+      gl.uniform1f(u_sat,  Number(sat.value));
+      gl.uniform1f(u_lig,  Number(light.value));
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+
+    // ---------- UI bindings ----------
+    const fileInput = document.getElementById('fileInput');
+    const hue   = document.getElementById('hue');
+    const sat   = document.getElementById('sat');
+    const light = document.getElementById('light');
+    const hueVal = document.getElementById('hueVal');
+    const satVal = document.getElementById('satVal');
+    const lightVal = document.getElementById('lightVal');
+    const statusEl = document.getElementById('status');
+
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+      const bmp = await createImageBitmap(file, { premultiplyAlpha: 'default' });
+      setTextureFromImageBitmap(bmp);
+      statusEl.textContent = 'Loaded locally (GPU preview)';
+    });
+
+    function onInput(){
+      hueVal.textContent = hue.value;
+      satVal.textContent = Number(sat.value).toFixed(2);
+      lightVal.textContent = Number(light.value).toFixed(2);
+      if (tex) draw();
+    }
+    hue.addEventListener('input', onInput);
+    sat.addEventListener('input', onInput);
+    light.addEventListener('input', onInput);
+
+    // ---------- Backend integration ----------
+    // 1) Upload once (stores original in backend as CURRENT_IMAGE)
+    document.getElementById('uploadBtn').addEventListener('click', async () => {
+      const f = fileInput.files?.[0];
+      if (!f) { alert('Choose an image first'); return; }
+      const fd = new FormData();
+      fd.append('file', f);
+      statusEl.textContent = 'Uploading...';
+      const res = await fetch('/upload', { method: 'POST', body: fd });
+      if (!res.ok) { statusEl.textContent = 'Upload failed'; return; }
+      const data = await res.json();
+      statusEl.textContent = `Uploaded as ${data.filename}`;
+    });
+
+    // 2) Export full-res via backend (C++ exact output)
+    document.getElementById('exportBtn').addEventListener('click', async () => {
+      statusEl.textContent = 'Exporting full-res...';
+      const fd = new FormData();
+      fd.append('hue_shift', hue.value);
+      fd.append('sat_scale', sat.value);
+      fd.append('light_scale', light.value);
+
+      const r = await fetch('/adjust', { method: 'POST', body: fd });
+      if (!r.ok) { statusEl.textContent = 'Export failed'; return; }
+      const blob = await r.blob();
+
+      // Download file
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'result.png';
+      a.click();
+      URL.revokeObjectURL(a.href);
+
+      statusEl.textContent = 'Exported ✔';
+    });
+  </script>
+</body>
+</html>
