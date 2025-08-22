@@ -7,7 +7,26 @@
     body { font-family: system-ui, sans-serif; margin: 16px; }
     .controls { display: grid; gap: 10px; max-width: 600px; }
     .row { display: grid; grid-template-columns: 160px 1fr 60px; gap: 10px; align-items: center; }
-    canvas { display: block; max-width: 100%; margin-top: 16px; border-radius: 8px; }
+    /*canvas { display: block; max-width: 100%; margin-top: 16px; border-radius: 8px; }*/
+
+    #canvasWrapper {
+      display: flex;
+      justify-content: center;
+      align-items: start;
+      height: 100vh;
+      overflow: hidden;
+      transform: scaleX(-1) rotate(180deg);
+    }
+
+    canvas {
+      width: 75vh;
+      height: 100vh;
+      max-width: 900px;
+      max-height: 1200px;
+      object-fit: contain;
+      transform-origin: top center;
+    }
+
     button { padding: 8px 14px; border-radius: 8px; border: 0; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
     input[type="range"] { width: 100%; }
   </style>
@@ -50,54 +69,45 @@
     </div>
   </div>
 
-  <canvas id="glcanvas" width="800" height="600"></canvas>
+  <!-- <canvas id="glcanvas" width="800" height="600"></canvas> -->
+
+  <div id="canvasWrapper" style="overflow: hidden;">
+    <canvas id="glcanvas" width="800" height="600"></canvas>
+  </div>
+
+
 
   <script>
     // ---------- WebGL boilerplate ----------
     const canvas = document.getElementById('glcanvas');
-    const canvasWidth = 800;
-    const canvasHeight = 600;
+    // const canvasWidth = 800;
+    // const canvasHeight = 600;
 
 
-    // Load image and create thumbnail
+    // // Load image and create thumbnail
     let img = new Image();
-    document.getElementById("fileInput").onchange = e => {
-    img.src = URL.createObjectURL(e.target.files[0]);
+      document.getElementById("fileInput").onchange = e => {
+      img.src = URL.createObjectURL(e.target.files[0]);
     };
-    // createThumbnail(img, maxSize = 1024);
-    img.onload = () => {
-    imgWidth = img.width;
-    imgHeight = img.height;
-    initWebGL();
-    // createThumbnail()
-    }
 
+    img.onload = () => {
+      imgWidth = img.width;
+      imgHeight = img.height;
+      initWebGL();
+    }
 
     // Zoom & Pan
+    let zoom = 1;
+
     canvas.addEventListener("wheel", e => {
-    e.preventDefault();
-    zoom *= e.deltaY > 0 ? 0.9 : 1.1;
-    drawImage();
+      e.preventDefault();
+      zoom *= e.deltaY > 0 ? 0.9 : 1.1;
+      canvas.style.transform = `scale(${zoom})`;
     });
 
-    canvas.addEventListener("mousedown", e => {
-    isDragging = true;
-    lastX = e.clientX;
-    lastY = e.clientY;
-    });
-    canvas.addEventListener("mousemove", e => {
-    if (isDragging) {
-        offsetX += (e.clientX - lastX) / zoom;
-        offsetY += (e.clientY - lastY) / zoom;
-        lastX = e.clientX;
-        lastY = e.clientY;
-        drawImage();
-    }
-    });
-    canvas.addEventListener("mouseup", () => isDragging = false);
-    canvas.addEventListener("mouseleave", () => isDragging = false);
 
     const gl = canvas.getContext('webgl', { premultipliedAlpha: false, alpha: false });
+ 
     if (!gl) { alert('WebGL not supported'); }
 
     const vsSrc = `
