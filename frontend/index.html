@@ -2,101 +2,220 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>HSL Editor</title>
+  <title>Lightroom-style HSL (WebGL1)</title>
   <style>
-    body { font-family: sans-serif; margin: 20px; }
-    img { max-width: 500px; display: block; margin-top: 20px; }
-    .slider { margin: 10px 0; }
+    body { font-family: sans-serif; background: #222; color: #eee; }
+    canvas { border: 1px solid #555; display: block; margin-bottom: 1em; }
+    .controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .group { background: #333; padding: 8px; border-radius: 6px; }
+    label { display: block; font-size: 0.8em; margin-bottom: 4px; }
+    input[type=range] { width: 100%; }
   </style>
 </head>
 <body>
-  <h1>Photo HSL Editor</h1>
+  <h2>Lightroom-style HSL (WebGL1)</h2>
+  <input type="file" id="fileInput"><br>
+  <canvas id="glcanvas" width="800" height="600"></canvas>
+  <div id="status">No image</div>
 
-  <!-- Upload -->
-  <input type="file" id="fileInput" />
-  <button onclick="uploadImage()">Upload</button>
+  <div class="controls" id="controls"></div>
 
-  <!-- Sliders -->
-  <div class="slider">
-    <label>Hue Shift: <span id="hueVal">0</span></label>
-    <input type="range" id="hue" min="-180" max="180" value="0" step="1" />
-  </div>
-  <div class="slider">
-    <label>Saturation Scale: <span id="satVal">1</span></label>
-    <input type="range" id="sat" min="0" max="2" value="1" step="0.1" />
-  </div>
-  <div class="slider">
-    <label>Lightness Scale: <span id="lightVal">1</span></label>
-    <input type="range" id="light" min="0" max="2" value="1" step="0.1" />
-  </div>
+<script>
+const canvas = document.getElementById("glcanvas");
+const gl = canvas.getContext("webgl"); // WebGL1
 
-  <!-- Preview -->
-  <img id="preview" src="" alt="Preview will appear here" />
+// ---------- Shaders ----------
+const vsSrc = `
+attribute vec2 a_pos;
+attribute vec2 a_uv;
+varying vec2 v_uv;
+void main() {
+  v_uv = a_uv;
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
 
-  <script>
-    let filename = null;
+const fsSrc = `
+precision mediump float;
+varying vec2 v_uv;
+uniform sampler2D u_tex;
 
-    async function uploadImage() {
-      const file = document.getElementById("fileInput").files[0];
-      const formData = new FormData();
-      formData.append("file", file);
+// 24 uniforms (8×3)
+uniform float u_hue0; uniform float u_sat0; uniform float u_lig0;
+uniform float u_hue1; uniform float u_sat1; uniform float u_lig1;
+uniform float u_hue2; uniform float u_sat2; uniform float u_lig2;
+uniform float u_hue3; uniform float u_sat3; uniform float u_lig3;
+uniform float u_hue4; uniform float u_sat4; uniform float u_lig4;
+uniform float u_hue5; uniform float u_sat5; uniform float u_lig5;
+uniform float u_hue6; uniform float u_sat6; uniform float u_lig6;
+uniform float u_hue7; uniform float u_sat7; uniform float u_lig7;
 
-      const res = await fetch("/upload", {
-        method: "POST",
-        body: formData,
-      });
-      console.log('----res', res)
-      const data = await res.json();
-      filename = data.filename;
-      updateImage();
-    }
+// Helpers: RGB <-> HSL
+vec3 rgb2hsl(vec3 c){
+  float maxc = max(max(c.r, c.g), c.b);
+  float minc = min(min(c.r, c.g), c.b);
+  float h = 0.0; float s = 0.0; float l = (maxc + minc) * 0.5;
+  if(maxc != minc){
+    float d = maxc - minc;
+    s = l > 0.5 ? d / (2.0 - maxc - minc) : d / (maxc + minc);
+    if(maxc == c.r) h = (c.g - c.b) / d + (c.g < c.b ? 6.0 : 0.0);
+    else if(maxc == c.g) h = (c.b - c.r) / d + 2.0;
+    else h = (c.r - c.g) / d + 4.0;
+    h /= 6.0;
+  }
+  return vec3(h, s, l);
+}
+float hue2rgb(float p, float q, float t){
+  if(t < 0.0) t += 1.0;
+  if(t > 1.0) t -= 1.0;
+  if(t < 1.0/6.0) return p + (q - p) * 6.0 * t;
+  if(t < 1.0/2.0) return q;
+  if(t < 2.0/3.0) return p + (q - p) * (2.0/3.0 - t) * 6.0;
+  return p;
+}
+vec3 hsl2rgb(vec3 hsl){
+  float h=hsl.x, s=hsl.y, l=hsl.z;
+  if(s==0.0) return vec3(l);
+  float q = l < 0.5 ? l*(1.0+s) : l+s-l*s;
+  float p = 2.0*l - q;
+  return vec3(
+    hue2rgb(p,q,h+1.0/3.0),
+    hue2rgb(p,q,h),
+    hue2rgb(p,q,h-1.0/3.0)
+  );
+}
 
-    async function updateImage() {
-      if (!filename) return;
+// Band selector
+void getAdjustments(int band, out float hueShift, out float satScale, out float ligScale){
+  if(band==0){hueShift=u_hue0; satScale=u_sat0; ligScale=u_lig0;}
+  else if(band==1){hueShift=u_hue1; satScale=u_sat1; ligScale=u_lig1;}
+  else if(band==2){hueShift=u_hue2; satScale=u_sat2; ligScale=u_lig2;}
+  else if(band==3){hueShift=u_hue3; satScale=u_sat3; ligScale=u_lig3;}
+  else if(band==4){hueShift=u_hue4; satScale=u_sat4; ligScale=u_lig4;}
+  else if(band==5){hueShift=u_hue5; satScale=u_sat5; ligScale=u_lig5;}
+  else if(band==6){hueShift=u_hue6; satScale=u_sat6; ligScale=u_lig6;}
+  else {hueShift=u_hue7; satScale=u_sat7; ligScale=u_lig7;}
+}
 
-      const hue = document.getElementById("hue").value;
-      const sat = document.getElementById("sat").value;
-      const light = document.getElementById("light").value;
+void main(){
+  vec4 tex = texture2D(u_tex, v_uv);
+  vec3 hsl = rgb2hsl(tex.rgb);
 
-      // Update labels
-      document.getElementById("hueVal").innerText = hue;
-      document.getElementById("satVal").innerText = sat;
-      document.getElementById("lightVal").innerText = light;
+  int band = int(floor(hsl.x * 8.0)); // 0..7
+  float hueShift, satScale, ligScale;
+  getAdjustments(band, hueShift, satScale, ligScale);
 
-      const formData = new FormData();
-      formData.append("hue_shift", hue);
-      formData.append("sat_scale", sat);
-      formData.append("light_scale", light);
+  hsl.x = fract(hsl.x + hueShift/360.0);
+  hsl.y = clamp(hsl.y * satScale, 0.0, 1.0);
+  hsl.z = clamp(hsl.z * ligScale, 0.0, 1.0);
 
-      const res = await fetch("/adjust", {
-        method: "POST",
-        body: formData,
-      });
+  vec3 rgb = hsl2rgb(hsl);
+  gl_FragColor = vec4(rgb, tex.a);
+}
+`;
 
-      if (res.ok) {
-        document.getElementById("preview").src = URL.createObjectURL(await res.blob());
-      }
-    }
+// ---------- Compile & Link ----------
+function compile(type, src){
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if(!gl.getShaderParameter(sh, gl.COMPILE_STATUS)){
+    throw new Error(gl.getShaderInfoLog(sh));
+  }
+  return sh;
+}
+function program(vs, fs){
+  const p = gl.createProgram();
+  gl.attachShader(p, vs); gl.attachShader(p, fs);
+  gl.linkProgram(p);
+  if(!gl.getProgramParameter(p, gl.LINK_STATUS)){
+    throw new Error(gl.getProgramInfoLog(p));
+  }
+  return p;
+}
+const prog = program(compile(gl.VERTEX_SHADER, vsSrc), compile(gl.FRAGMENT_SHADER, fsSrc));
+gl.useProgram(prog);
 
-    var hue = document.getElementById("hue")
-    hue.addEventListener("change", () => {
-      updateImage();
-    });
+// ---------- Quad ----------
+const quad = new Float32Array([
+  -1,-1, 0,0,
+   1,-1, 1,0,
+  -1, 1, 0,1,
+   1, 1, 1,1
+]);
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
+const a_pos = gl.getAttribLocation(prog,"a_pos");
+const a_uv  = gl.getAttribLocation(prog,"a_uv");
+gl.enableVertexAttribArray(a_pos);
+gl.enableVertexAttribArray(a_uv);
+gl.vertexAttribPointer(a_pos,2,gl.FLOAT,false,16,0);
+gl.vertexAttribPointer(a_uv,2,gl.FLOAT,false,16,8);
 
-    var sat = document.getElementById("sat");
-    sat.addEventListener("change", () => {
-      updateImage();
-    });
+// ---------- Uniforms ----------
+const uniforms = {};
+function getUniforms(){
+  for(let i=0;i<8;i++){
+    uniforms[`hue${i}`] = gl.getUniformLocation(prog,`u_hue${i}`);
+    uniforms[`sat${i}`] = gl.getUniformLocation(prog,`u_sat${i}`);
+    uniforms[`lig${i}`] = gl.getUniformLocation(prog,`u_lig${i}`);
+  }
+}
+getUniforms();
 
-    var light = document.getElementById("light");
-    light.addEventListener("change", () => {
-      updateImage();
-    });
+let tex=null;
+function setTextureFromImageBitmap(bmp){
+  canvas.width=800; canvas.height=600;
+  gl.viewport(0,0,canvas.width,canvas.height);
+  if(!tex) tex=gl.createTexture();
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,bmp);
+  draw();
+}
 
-    // Bind sliders to update
-    // document.getElementById("hue").addEventListener("input", updateImage);
-    // document.getElementById("sat").addEventListener("input", updateImage);
-    // document.getElementById("light").addEventListener("input", updateImage);
-  </script>
+function draw(){
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.uniform1i(gl.getUniformLocation(prog,"u_tex"),0);
+  for(let i=0;i<8;i++){
+    gl.uniform1f(uniforms[`hue${i}`], Number(sliders[i].hue.value));
+    gl.uniform1f(uniforms[`sat${i}`], Number(sliders[i].sat.value));
+    gl.uniform1f(uniforms[`lig${i}`], Number(sliders[i].lig.value));
+  }
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+}
+
+// ---------- UI ----------
+const fileInput=document.getElementById("fileInput");
+const statusEl=document.getElementById("status");
+fileInput.addEventListener("change",async()=>{
+  const f=fileInput.files?.[0]; if(!f) return;
+  const bmp=await createImageBitmap(f,{premultiplyAlpha:"default"});
+  setTextureFromImageBitmap(bmp);
+  statusEl.textContent="Image loaded";
+});
+
+// Generate sliders
+const controls=document.getElementById("controls");
+const bandNames=["Red","Orange","Yellow","Green","Aqua","Blue","Purple","Magenta"];
+const sliders=[];
+for(let i=0;i<8;i++){
+  const g=document.createElement("div"); g.className="group";
+  g.innerHTML=`<b>${bandNames[i]}</b><br>
+    Hue <input type="range" min="-180" max="180" step="1" value="0"><br>
+    Sat <input type="range" min="0" max="2" step="0.01" value="1"><br>
+    Light <input type="range" min="0" max="2" step="0.01" value="1">`;
+  controls.appendChild(g);
+  const [h,s,l]=g.querySelectorAll("input");
+  sliders.push({hue:h,sat:s,lig:l});
+  [h,s,l].forEach(inp=>inp.addEventListener("input",()=>{if(tex)draw();}));
+}
+</script>
 </body>
 </html>
