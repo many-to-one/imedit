@@ -2,23 +2,45 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <link rel="stylesheet" href="main.css">
   <title>Lightroom-style HSL (WebGL1)</title>
   <style>
     body { font-family: sans-serif; background: #222; color: #eee; }
+
+    .main-cont {
+      display: flex;
+      gap: 10px;
+    }
+
     canvas { border: 1px solid #555; display: block; margin-bottom: 1em; }
-    .controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+
+    /* .controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; } */
+
+    .menuHSL {
+      display: flex;
+      width: 200px;
+    }
+
     .group { background: #333; padding: 8px; border-radius: 6px; }
     label { display: block; font-size: 0.8em; margin-bottom: 4px; }
     input[type=range] { width: 100%; }
   </style>
 </head>
 <body>
-  <h2>Lightroom-style HSL (WebGL1)</h2>
-  <input type="file" id="fileInput"><br>
-  <canvas id="glcanvas" width="800" height="600"></canvas>
-  <div id="status">No image</div>
 
-  <div class="controls" id="controls"></div>
+  <input type="file" id="fileInput"><br>
+  
+  <div class="main-cont">
+
+    <canvas id="glcanvas" width="800" height="600"></canvas>
+    <div id="status">No image</div>
+
+    <div class="menuHSL">
+      <div class="colorHSL"></div>
+    </div>
+    <div class="controls" id="controls"></div>
+
+  </div>
 
 <script>
 const canvas = document.getElementById("glcanvas");
@@ -203,9 +225,20 @@ fileInput.addEventListener("change",async()=>{
 
 // Generate sliders
 const controls=document.getElementById("controls");
+const colorNames = ["red","orange","yellow","green","aqua","blue","purple","magenta"];
 const bandNames=["Red","Orange","Yellow","Green","Aqua","Blue","Purple","Magenta"];
+
+const circlesHSL=[];
 const sliders=[];
+
 for(let i=0;i<8;i++){
+
+  const c = document.createElement("div");
+  c.className = "crclHSL";
+  c.style.color = colorNames[i];
+  c.style.border = `1px`;
+  c.style.borderRadius = `50%`;
+
   const g=document.createElement("div"); g.className="group";
   g.innerHTML=`<b>${bandNames[i]}</b><br>
     Hue <input type="range" min="-180" max="180" step="1" value="0"><br>

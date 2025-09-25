@@ -1,0 +1,6 @@
+body { font-family: sans-serif; background: #222; color: #eee; }
+canvas { border: 1px solid #555; display: block; margin-bottom: 1em; }
+.controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.group { background: #333; padding: 8px; border-radius: 6px; }
+label { display: block; font-size: 0.8em; margin-bottom: 4px; }
+input[type=range] { width: 100%; }
