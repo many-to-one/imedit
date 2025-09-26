@@ -18,7 +18,15 @@
 
     .menuHSL {
       display: flex;
-      width: 200px;
+      width: auto;
+    }
+
+    .crclHSL {
+      width: 30px;
+      height: 30px;
+      gap: 5px;
+      border: 1px solid white;
+      border-radius: 50%;
     }
 
     .group { background: #333; padding: 8px; border-radius: 6px; }
@@ -36,7 +44,16 @@
     <div id="status">No image</div>
 
     <div class="menuHSL">
-      <div class="colorHSL"></div>
+      <!-- <div class="colorHSL"> -->
+         <div class="crclHSL"></div>
+         <div class="crclHSL"></div>
+         <div class="crclHSL"></div>
+         <div class="crclHSL"></div>
+         <div class="crclHSL"></div>
+         <div class="crclHSL"></div>
+         <div class="crclHSL"></div>
+         <div class="crclHSL"></div>
+      <!-- </div> -->
     </div>
     <div class="controls" id="controls"></div>
 
@@ -233,11 +250,12 @@ const sliders=[];
 
 for(let i=0;i<8;i++){
 
-  const c = document.createElement("div");
-  c.className = "crclHSL";
-  c.style.color = colorNames[i];
-  c.style.border = `1px`;
-  c.style.borderRadius = `50%`;
+  // const c = document.createElement("div");
+  // c.className = "crclHSL";
+  // c.style.color = colorNames[i];
+  // c.style.border = `1px`;
+  // c.style.borderColor = `white`;
+  // c.style.borderRadius = `50%`;
 
   const g=document.createElement("div"); g.className="group";
   g.innerHTML=`<b>${bandNames[i]}</b><br>
