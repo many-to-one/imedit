@@ -12,6 +12,11 @@
       gap: 10px;
     }
 
+    .horisontal-flex {
+      display: flex;
+      gap: 5px;
+    }
+
     canvas { border: 1px solid #555; display: block; margin-bottom: 1em; }
 
     /* .controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; } */
@@ -19,6 +24,13 @@
     .menuHSL {
       display: flex;
       width: auto;
+      gap: 5px;
+    }
+
+    .colorPanel {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
     }
 
     .crclHSL {
@@ -27,6 +39,7 @@
       gap: 5px;
       border: 1px solid white;
       border-radius: 50%;
+      cursor: pointer;
     }
 
     .group { background: #333; padding: 8px; border-radius: 6px; }
@@ -44,23 +57,28 @@
     <div id="status">No image</div>
 
     <div class="menuHSL">
-      <!-- <div class="colorHSL"> -->
-         <div class="crclHSL"></div>
-         <div class="crclHSL"></div>
-         <div class="crclHSL"></div>
-         <div class="crclHSL"></div>
-         <div class="crclHSL"></div>
-         <div class="crclHSL"></div>
-         <div class="crclHSL"></div>
-         <div class="crclHSL"></div>
-      <!-- </div> -->
+
+      <div class="colorPanel">
+         <div class="horisontal-flex">
+          <div class="crclHSL" id="Red" style="background-color: red;" onclick="showHSL('Red')"></div>
+          <div class="crclHSL" id="Orange" style="background-color: orange;" onclick="showHSL('Orange')"></div>
+          <div class="crclHSL" id="Yellow" style="background-color: yellow;" onclick="showHSL('Yellow')"></div>
+          <div class="crclHSL" id="Green" style="background-color: green;" onclick="showHSL('Green')"></div>
+          <div class="crclHSL" id="Aqua" style="background-color: aqua;" onclick="showHSL('Aqua')"></div>
+          <div class="crclHSL" id="Blue" style="background-color: blue;" onclick="showHSL('Blue')"></div>
+          <div class="crclHSL" id="Purple" style="background-color: purple;" onclick="showHSL('Purple')"></div>
+          <div class="crclHSL" id="Magenta" style="background-color: magenta;" onclick="showHSL('Magenta')"></div>
+         </div>
+
+         <div class="controls" id="controls"></div>
+      </div>
     </div>
-    <div class="controls" id="controls"></div>
 
   </div>
 
 <script>
 const canvas = document.getElementById("glcanvas");
+canvas.style.transform = "rotate(180deg) scaleX(-1)";
 const gl = canvas.getContext("webgl"); // WebGL1
 
 // ---------- Shaders ----------
@@ -250,14 +268,7 @@ const sliders=[];
 
 for(let i=0;i<8;i++){
 
-  // const c = document.createElement("div");
-  // c.className = "crclHSL";
-  // c.style.color = colorNames[i];
-  // c.style.border = `1px`;
-  // c.style.borderColor = `white`;
-  // c.style.borderRadius = `50%`;
-
-  const g=document.createElement("div"); g.className="group";
+  const g=document.createElement("div"); g.id=`hsl_${bandNames[i]}`; g.className=`group_${bandNames[i]}`; g.style.display="none"
   g.innerHTML=`<b>${bandNames[i]}</b><br>
     Hue <input type="range" min="-180" max="180" step="1" value="0"><br>
     Sat <input type="range" min="0" max="2" step="0.01" value="1"><br>
@@ -267,6 +278,31 @@ for(let i=0;i<8;i++){
   sliders.push({hue:h,sat:s,lig:l});
   [h,s,l].forEach(inp=>inp.addEventListener("input",()=>{if(tex)draw();}));
 }
+
+let globalHSL = null;
+
+function showHSL(color) {
+  console.log('Click----', color);
+
+  // Hide the previously shown element
+  if (globalHSL !== null) {
+    const previousCol = document.getElementById(`hsl_${globalHSL}`);
+    if (previousCol) {
+      previousCol.style.display = "none";
+    }
+  }
+
+  // Show the new element
+  const col = document.getElementById(`hsl_${color}`);
+  if (col) {
+    col.style.display = "block";
+  }
+
+  // Update the global tracker
+  globalHSL = color;
+}
+
+
 </script>
 </body>
 </html>
