@@ -1,253 +1,537 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>WebGL HSL Editor</title>
-<style>
-  canvas { border: 1px solid #333; cursor: grab; }
-  .slider-container { display: flex; flex-direction: column; width: 300px; }
-</style>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="main.css">
+  <title>Lightroom-style HSL (WebGL1)</title>
+  <style>
+    body { font-family: sans-serif; background: #222; color: #eee; }
+
+    .main-cont {
+      display: flex;
+      gap: 10px;
+    }
+
+    .horisontal-flex {
+      display: flex;
+      gap: 5px;
+    }
+
+    canvas { border: 1px solid #555; display: block; margin-bottom: 1em; }
+
+    /* .controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; } */
+
+    .menuHSL {
+      display: flex;
+      width: auto;
+      gap: 5px;
+    }
+
+    .colorPanel {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .crclHSL {
+      width: 30px;
+      height: 30px;
+      gap: 5px;
+      border: 1px solid white;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    .group { background: #333; padding: 8px; border-radius: 6px; }
+
+    #calibration-panel { background:#2c2c2c; border-radius:8px; padding:10px; margin-top:12px; }
+    #calibration-panel h3 { margin:0 0 8px 0; font-size:14px; }
+    #calibration-panel fieldset { border:1px solid #444; padding:8px; margin-bottom:8px; }
+    #calibration-panel legend { padding:0 6px; font-weight:bold; }
+    #calibration-panel label { display:block; font-size:12px; margin-top:8px; color:#ddd; }
+    #calibration-panel input[type=range] { width:100%; }
+    #calibration-panel .prim { margin-top:8px; padding-top:8px; border-top:1px dashed #3a3a3a; }
+    #calibration-panel .val { font-size:11px; color:#9ad; margin-bottom:6px; }
+
+    label { display: block; font-size: 0.8em; margin-bottom: 4px; }
+    input[type=range] { width: 100%; }
+  </style>
 </head>
 <body>
-<input type="file" id="fileInput">
-<div class="slider-container">
-  <label>Hue: <input type="range" id="hue" min="-180" max="180" value="0"></label>
-  <label>Saturation: <input type="range" id="sat" min="0" max="2" step="0.01" value="1"></label>
-  <label>Lightness: <input type="range" id="light" min="0" max="2" step="0.01" value="1"></label>
-</div>
-<canvas id="glcanvas" width="800" height="600"></canvas>
-<button id="exportBtn">Export Full-Res</button>
+
+  <input type="file" id="fileInput"><br>
+  
+  <div class="main-cont">
+
+    <canvas id="glcanvas" width="800" height="600"></canvas>
+    <div id="status">No image</div>
+
+    <div class="menuHSL">
+
+      <div class="colorPanel">
+         <div class="horisontal-flex">
+          <div class="crclHSL" id="Red" style="background-color: red;" onclick="showHSL('Red')"></div>
+          <div class="crclHSL" id="Orange" style="background-color: orange;" onclick="showHSL('Orange')"></div>
+          <div class="crclHSL" id="Yellow" style="background-color: yellow;" onclick="showHSL('Yellow')"></div>
+          <div class="crclHSL" id="Green" style="background-color: green;" onclick="showHSL('Green')"></div>
+          <div class="crclHSL" id="Aqua" style="background-color: aqua;" onclick="showHSL('Aqua')"></div>
+          <div class="crclHSL" id="Blue" style="background-color: blue;" onclick="showHSL('Blue')"></div>
+          <div class="crclHSL" id="Purple" style="background-color: purple;" onclick="showHSL('Purple')"></div>
+          <div class="crclHSL" id="Magenta" style="background-color: magenta;" onclick="showHSL('Magenta')"></div>
+         </div>
+
+         <div class="controls" id="controls"></div>
+
+         <!-- Calibration panel (HTML) -->
+        <div id="calibration-panel" class="group">
+          <h3>Calibration</h3>
+
+          <fieldset>
+            <legend>Shadows</legend>
+            <label for="shadowHue">Shadow Hue (deg)</label>
+            <input id="shadowHue" type="range" min="-180" max="180" step="1" value="0">
+            <div class="val" id="shadowHueVal">0</div>
+
+            <label for="shadowTint">Shadow Tint (sat)</label>
+            <input id="shadowTint" type="range" min="0" max="2" step="0.01" value="1">
+            <div class="val" id="shadowTintVal">1.00</div>
+          </fieldset>
+
+          <fieldset>
+            <legend>RGB Primaries</legend>
+
+            <div class="prim">
+              <strong>Red</strong>
+              <label for="redHue">Hue (deg)</label>
+              <input id="redHue" type="range" min="-30" max="30" step="0.5" value="0">
+              <div class="val" id="redHueVal">0</div>
+
+              <label for="redSat">Sat (scale)</label>
+              <input id="redSat" type="range" min="0" max="2" step="0.01" value="1">
+              <div class="val" id="redSatVal">1.00</div>
+            </div>
+
+            <div class="prim">
+              <strong>Green</strong>
+              <label for="greenHue">Hue (deg)</label>
+              <input id="greenHue" type="range" min="-30" max="30" step="0.5" value="0">
+              <div class="val" id="greenHueVal">0</div>
+
+              <label for="greenSat">Sat (scale)</label>
+              <input id="greenSat" type="range" min="0" max="2" step="0.01" value="1">
+              <div class="val" id="greenSatVal">1.00</div>
+            </div>
+
+            <div class="prim">
+              <strong>Blue</strong>
+              <label for="blueHue">Hue (deg)</label>
+              <input id="blueHue" type="range" min="-30" max="30" step="0.5" value="0">
+              <div class="val" id="blueHueVal">0</div>
+
+              <label for="blueSat">Sat (scale)</label>
+              <input id="blueSat" type="range" min="0" max="2" step="0.01" value="1">
+              <div class="val" id="blueSatVal">1.00</div>
+            </div>
+
+          </fieldset>
+        </div>
+        <!--  End of: Calibration panel (HTML) -->
+
+      </div>
+
+    </div>
+
+  </div>
+
 <script>
-    let gl, program, texture;
-    let zoom = 1.0, offsetX = 0, offsetY = 0;
-    let isDragging = false, lastX, lastY;
-    let imgWidth, imgHeight;
-    let hue = 0, sat = 1, light = 1;
+const canvas = document.getElementById("glcanvas");
+canvas.style.transform = "rotate(180deg) scaleX(-1)";
+const gl = canvas.getContext("webgl"); // WebGL1
 
-    const canvas = document.getElementById("glcanvas");
-    const hueSlider = document.getElementById("hue");
-    const satSlider = document.getElementById("sat");
-    const lightSlider = document.getElementById("light");
+// ---------- Shaders ----------
+const vsSrc = `
+attribute vec2 a_pos;
+attribute vec2 a_uv;
+varying vec2 v_uv;
+void main() {
+  v_uv = a_uv;
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
 
-    // Load image and create thumbnail
-    let img = new Image();
-    document.getElementById("fileInput").onchange = e => {
-    img.src = URL.createObjectURL(e.target.files[0]);
-    };
-    img.onload = () => {
-    imgWidth = img.width;
-    imgHeight = img.height;
-    initWebGL();
-    };
+const fsSrc = `
+precision mediump float;
+varying vec2 v_uv;
+uniform sampler2D u_tex;
 
-    // Slider events
-    [hueSlider, satSlider, lightSlider].forEach(slider => {
-    slider.addEventListener("input", () => {
-        hue = parseFloat(hueSlider.value);
-        sat = parseFloat(satSlider.value);
-        light = parseFloat(lightSlider.value);
-        drawImage();
-    });
-    });
+// 24 HSL band uniforms (8×3)
+uniform float u_hue0; uniform float u_sat0; uniform float u_lig0;
+uniform float u_hue1; uniform float u_sat1; uniform float u_lig1;
+uniform float u_hue2; uniform float u_sat2; uniform float u_lig2;
+uniform float u_hue3; uniform float u_sat3; uniform float u_lig3;
+uniform float u_hue4; uniform float u_sat4; uniform float u_lig4;
+uniform float u_hue5; uniform float u_sat5; uniform float u_lig5;
+uniform float u_hue6; uniform float u_sat6; uniform float u_lig6;
+uniform float u_hue7; uniform float u_sat7; uniform float u_lig7;
 
-    // Zoom & Pan
-    canvas.addEventListener("wheel", e => {
-    e.preventDefault();
-    zoom *= e.deltaY > 0 ? 0.9 : 1.1;
-    drawImage();
-    });
+// Camera calibration uniforms
+uniform float u_shadowHue;
+uniform float u_shadowTint;
+uniform float u_redHue;   uniform float u_redSat;
+uniform float u_greenHue; uniform float u_greenSat;
+uniform float u_blueHue;  uniform float u_blueSat;
 
-    canvas.addEventListener("mousedown", e => {
-    isDragging = true;
-    lastX = e.clientX;
-    lastY = e.clientY;
-    });
-    canvas.addEventListener("mousemove", e => {
-    if (isDragging) {
-        offsetX += (e.clientX - lastX) / zoom;
-        offsetY += (e.clientY - lastY) / zoom;
-        lastX = e.clientX;
-        lastY = e.clientY;
-        drawImage();
+// Helpers: RGB <-> HSL
+vec3 rgb2hsl(vec3 c){
+  float maxc = max(max(c.r, c.g), c.b);
+  float minc = min(min(c.r, c.g), c.b);
+  float h = 0.0; float s = 0.0; float l = (maxc + minc) * 0.5;
+  if(maxc != minc){
+    float d = maxc - minc;
+    s = l > 0.5 ? d / (2.0 - maxc - minc) : d / (maxc + minc);
+    if(maxc == c.r) h = (c.g - c.b) / d + (c.g < c.b ? 6.0 : 0.0);
+    else if(maxc == c.g) h = (c.b - c.r) / d + 2.0;
+    else h = (c.r - c.g) / d + 4.0;
+    h /= 6.0;
+  }
+  return vec3(h, s, l);
+}
+float hue2rgb(float p, float q, float t){
+  if(t < 0.0) t += 1.0;
+  if(t > 1.0) t -= 1.0;
+  if(t < 1.0/6.0) return p + (q - p) * 6.0 * t;
+  if(t < 1.0/2.0) return q;
+  if(t < 2.0/3.0) return p + (q - p) * (2.0/3.0 - t) * 6.0;
+  return p;
+}
+vec3 hsl2rgb(vec3 hsl){
+  float h=hsl.x, s=hsl.y, l=hsl.z;
+  if(s==0.0) return vec3(l);
+  float q = l < 0.5 ? l*(1.0+s) : l+s-l*s;
+  float p = 2.0*l - q;
+  return vec3(
+    hue2rgb(p,q,h+1.0/3.0),
+    hue2rgb(p,q,h),
+    hue2rgb(p,q,h-1.0/3.0)
+  );
+}
+
+// HSL band selector
+void getAdjustments(int band, out float hueShift, out float satScale, out float ligScale){
+  if(band==0){hueShift=u_hue0; satScale=u_sat0; ligScale=u_lig0;}
+  else if(band==1){hueShift=u_hue1; satScale=u_sat1; ligScale=u_lig1;}
+  else if(band==2){hueShift=u_hue2; satScale=u_sat2; ligScale=u_lig2;}
+  else if(band==3){hueShift=u_hue3; satScale=u_sat3; ligScale=u_lig3;}
+  else if(band==4){hueShift=u_hue4; satScale=u_sat4; ligScale=u_lig4;}
+  else if(band==5){hueShift=u_hue5; satScale=u_sat5; ligScale=u_lig5;}
+  else if(band==6){hueShift=u_hue6; satScale=u_sat6; ligScale=u_lig6;}
+  else {hueShift=u_hue7; satScale=u_sat7; ligScale=u_lig7;}
+}
+
+// small gaussian weight helper
+float weightSmooth(float dist, float sigma){
+  return exp(-0.5*(dist/sigma)*(dist/sigma));
+}
+const float RED_HUE = 0.0;
+const float GREEN_HUE = 120.0/360.0;
+const float BLUE_HUE = 240.0/360.0;
+float hueDist(float a, float b){
+  float d = abs(a - b);
+  return min(d, 1.0 - d);
+}
+
+void main(){
+  vec4 tex = texture2D(u_tex, v_uv);
+  vec3 rgb = tex.rgb;
+  vec3 hsl = rgb2hsl(rgb);
+
+  // --- HSL per-band
+  int band = int(floor(hsl.x * 8.0));
+  float hueShift, satScale, ligScale;
+  getAdjustments(band, hueShift, satScale, ligScale);
+  hsl.x = fract(hsl.x + hueShift/360.0);
+  hsl.y = clamp(hsl.y * satScale, 0.0, 1.0);
+  hsl.z = clamp(hsl.z * ligScale, 0.0, 1.0);
+  rgb = hsl2rgb(hsl);
+
+  // --- Shadows calibration
+  float lum = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+  float shadowFactor = smoothstep(0.0, 0.5, 1.0 - lum);
+  if (shadowFactor > 0.0001) {
+    vec3 sh = rgb2hsl(rgb);
+    sh.x = fract(sh.x + (u_shadowHue / 360.0) * shadowFactor);
+    sh.y = clamp(sh.y * mix(1.0, u_shadowTint, shadowFactor), 0.0, 1.0);
+    rgb = hsl2rgb(sh);
+  }
+
+  // --- RGB primaries
+  vec3 p = rgb2hsl(rgb);
+
+  float dR = hueDist(p.x, RED_HUE);
+  float wR = weightSmooth(dR, 0.08);
+  p.x = fract(p.x + (u_redHue / 360.0) * wR);
+  p.y = clamp(p.y * mix(1.0, u_redSat, wR), 0.0, 1.0);
+
+  float dG = hueDist(p.x, GREEN_HUE);
+  float wG = weightSmooth(dG, 0.08);
+  p.x = fract(p.x + (u_greenHue / 360.0) * wG);
+  p.y = clamp(p.y * mix(1.0, u_greenSat, wG), 0.0, 1.0);
+
+  float dB = hueDist(p.x, BLUE_HUE);
+  float wB = weightSmooth(dB, 0.08);
+  p.x = fract(p.x + (u_blueHue / 360.0) * wB);
+  p.y = clamp(p.y * mix(1.0, u_blueSat, wB), 0.0, 1.0);
+
+  rgb = hsl2rgb(p);
+  gl_FragColor = vec4(rgb, tex.a);
+}
+`;
+
+// ---------- Compile & Link ----------
+function compile(type, src){
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if(!gl.getShaderParameter(sh, gl.COMPILE_STATUS)){
+    throw new Error(gl.getShaderInfoLog(sh));
+  }
+  return sh;
+}
+function program(vs, fs){
+  const p = gl.createProgram();
+  gl.attachShader(p, vs); gl.attachShader(p, fs);
+  gl.linkProgram(p);
+  if(!gl.getProgramParameter(p, gl.LINK_STATUS)){
+    throw new Error(gl.getProgramInfoLog(p));
+  }
+  return p;
+}
+const prog = program(compile(gl.VERTEX_SHADER, vsSrc), compile(gl.FRAGMENT_SHADER, fsSrc));
+gl.useProgram(prog);
+
+// ---------- Quad ----------
+const quad = new Float32Array([
+  -1,-1, 0,0,
+   1,-1, 1,0,
+  -1, 1, 0,1,
+   1, 1, 1,1
+]);
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
+const a_pos = gl.getAttribLocation(prog,"a_pos");
+const a_uv  = gl.getAttribLocation(prog,"a_uv");
+gl.enableVertexAttribArray(a_pos);
+gl.enableVertexAttribArray(a_uv);
+gl.vertexAttribPointer(a_pos,2,gl.FLOAT,false,16,0);
+gl.vertexAttribPointer(a_uv,2,gl.FLOAT,false,16,8);
+
+// ---------- Uniforms ----------
+const uniforms = {};
+function getUniforms(){
+  for(let i=0;i<8;i++){
+    uniforms[`hue${i}`] = gl.getUniformLocation(prog,`u_hue${i}`);
+    uniforms[`sat${i}`] = gl.getUniformLocation(prog,`u_sat${i}`);
+    uniforms[`lig${i}`] = gl.getUniformLocation(prog,`u_lig${i}`);
+  }
+}
+getUniforms();
+
+// calibration uniforms
+const calUniforms = {
+  shadowHue: gl.getUniformLocation(prog, "u_shadowHue"),
+  shadowTint: gl.getUniformLocation(prog, "u_shadowTint"),
+  redHue: gl.getUniformLocation(prog, "u_redHue"),
+  redSat: gl.getUniformLocation(prog, "u_redSat"),
+  greenHue: gl.getUniformLocation(prog, "u_greenHue"),
+  greenSat: gl.getUniformLocation(prog, "u_greenSat"),
+  blueHue: gl.getUniformLocation(prog, "u_blueHue"),
+  blueSat: gl.getUniformLocation(prog, "u_blueSat")
+};
+
+let tex=null;
+function setTextureFromImageBitmap(bmp){
+  canvas.width=800; canvas.height=600;
+  gl.viewport(0,0,canvas.width,canvas.height);
+  if(!tex) tex=gl.createTexture();
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,bmp);
+  draw();
+}
+
+
+
+function draw(){
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.uniform1i(gl.getUniformLocation(prog,"u_tex"),0);
+  for(let i=0;i<8;i++){
+    gl.uniform1f(uniforms[`hue${i}`], Number(sliders[i].hue.value));
+    gl.uniform1f(uniforms[`sat${i}`], Number(sliders[i].sat.value));
+    gl.uniform1f(uniforms[`lig${i}`], Number(sliders[i].lig.value));
+  }
+
+  // calibration uniforms
+  gl.uniform1f(calUniforms.shadowHue, calibrationValues.shadowHue);
+  gl.uniform1f(calUniforms.shadowTint, calibrationValues.shadowTint);
+  gl.uniform1f(calUniforms.redHue, calibrationValues.redHue);
+  gl.uniform1f(calUniforms.redSat, calibrationValues.redSat);
+  gl.uniform1f(calUniforms.greenHue, calibrationValues.greenHue);
+  gl.uniform1f(calUniforms.greenSat, calibrationValues.greenSat);
+  gl.uniform1f(calUniforms.blueHue, calibrationValues.blueHue);
+  gl.uniform1f(calUniforms.blueSat, calibrationValues.blueSat);
+
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+}
+
+// ---------- UI ----------
+const fileInput=document.getElementById("fileInput");
+const statusEl=document.getElementById("status");
+fileInput.addEventListener("change",async()=>{
+  const f=fileInput.files?.[0]; if(!f) return;
+  const bmp=await createImageBitmap(f,{premultiplyAlpha:"default"});
+  setTextureFromImageBitmap(bmp);
+  statusEl.textContent="Image loaded";
+});
+
+// Generate sliders
+const controls=document.getElementById("controls");
+const colorNames = ["red","orange","yellow","green","aqua","blue","purple","magenta"];
+const bandNames=["Red","Orange","Yellow","Green","Aqua","Blue","Purple","Magenta"];
+
+const circlesHSL=[];
+const sliders=[];
+
+for(let i=0;i<8;i++){
+
+  const g=document.createElement("div"); g.id=`hsl_${bandNames[i]}`; g.className=`group_${bandNames[i]}`; g.style.display="none"
+  g.innerHTML=`<b>${bandNames[i]}</b><br>
+    Hue <input type="range" min="-180" max="180" step="1" value="0"><br>
+    Sat <input type="range" min="0" max="2" step="0.01" value="1"><br>
+    Light <input type="range" min="0" max="2" step="0.01" value="1">`;
+  controls.appendChild(g);
+  const [h,s,l]=g.querySelectorAll("input");
+  sliders.push({hue:h,sat:s,lig:l});
+  [h,s,l].forEach(inp=>inp.addEventListener("input",()=>{if(tex)draw();}));
+}
+
+let globalHSL = null;
+
+function showHSL(color) {
+  console.log('Click----', color);
+
+  // Hide the previously shown element
+  if (globalHSL !== null) {
+    const previousCol = document.getElementById(`hsl_${globalHSL}`);
+    if (previousCol) {
+      previousCol.style.display = "none";
     }
+  }
+
+  // Show the new element
+  const col = document.getElementById(`hsl_${color}`);
+  if (col) {
+    col.style.display = "block";
+  }
+
+  // Update the global tracker
+  globalHSL = color;
+}
+
+const controlsRoot = document.getElementById("controls");
+
+// -------------------------------------- //
+
+// Calibration controls
+// function makeSlider(label, min, max, step, value, oninput){
+//   const wrap = document.createElement("div");
+//   wrap.style.marginBottom = "6px";
+//   const lab = document.createElement("label"); lab.textContent = label;
+//   const input = document.createElement("input");
+//   input.type = "range"; input.min=min; input.max=max; input.step=step; input.value=value;
+//   input.style.width = "100%";
+//   input.addEventListener("input", ()=> oninput(Number(input.value)));
+//   wrap.appendChild(lab); wrap.appendChild(input);
+//   return {wrap, input};
+// }
+
+// const calibrationValues = {
+//   shadowHue: 0, shadowTint: 1,
+//   redHue: 0, redSat:1,
+//   greenHue:0, greenSat:1,
+//   blueHue:0, blueSat:1
+// };
+
+// const shBox = document.createElement("div"); shBox.style.marginTop = "12px";
+// shBox.innerHTML = "<b>Calibration — Shadows</b>";
+// const shHue = makeSlider("Shadow Hue (deg)", -180, 180, 1, 0, v => { calibrationValues.shadowHue = v; draw(); });
+// const shTint = makeSlider("Shadow Tint (sat)", 0.0, 2.0, 0.01, 1.0, v => { calibrationValues.shadowTint = v; draw(); });
+// shBox.appendChild(shHue.wrap); shBox.appendChild(shTint.wrap);
+// controlsRoot.appendChild(shBox);
+
+// const primBox = document.createElement("div"); primBox.style.marginTop = "12px";
+// primBox.innerHTML = "<b>Calibration — RGB Primaries</b>";
+// const rHue = makeSlider("Red Hue (deg)", -30, 30, 0.5, 0, v => { calibrationValues.redHue = v; draw(); });
+// const rSat = makeSlider("Red Sat (scale)", 0.0, 2.0, 0.01, 1.0, v => { calibrationValues.redSat = v; draw(); });
+// const gHue = makeSlider("Green Hue (deg)", -30, 30, 0.5, 0, v => { calibrationValues.greenHue = v; draw(); });
+// const gSat = makeSlider("Green Sat (scale)", 0.0, 2.0, 0.01, 1.0, v => { calibrationValues.greenSat = v; draw(); });
+// const bHue = makeSlider("Blue Hue (deg)", -30, 30, 0.5, 0, v => { calibrationValues.blueHue = v; draw(); });
+// const bSat = makeSlider("Blue Sat (scale)", 0.0, 2.0, 0.01, 1.0, v => { calibrationValues.blueSat = v; draw(); });
+
+// primBox.appendChild(rHue.wrap); primBox.appendChild(rSat.wrap);
+// primBox.appendChild(gHue.wrap); primBox.appendChild(gSat.wrap);
+// primBox.appendChild(bHue.wrap); primBox.appendChild(bSat.wrap);
+// controlsRoot.appendChild(primBox);
+
+
+// If calibrationValues wasn't defined yet, define a fallback:
+  window.calibrationValues = window.calibrationValues || {
+    shadowHue:0, shadowTint:1,
+    redHue:0, redSat:1,
+    greenHue:0, greenSat:1,
+    blueHue:0, blueSat:1
+  };
+
+  // helper to wire slider -> calibrationValues + UI label + draw()
+  function wire(id, field, fmt = v => v) {
+    const el = document.getElementById(id);
+    const label = document.getElementById(id + "Val");
+    if(!el) return;
+    // set initial
+    el.value = calibrationValues[field];
+    if(label) label.textContent = fmt(calibrationValues[field]);
+
+    el.addEventListener("input", () => {
+      const val = Number(el.value);
+      calibrationValues[field] = val;
+      if(label) label.textContent = fmt(val);
+      if(typeof draw === "function") draw();
     });
-    canvas.addEventListener("mouseup", () => isDragging = false);
-    canvas.addEventListener("mouseleave", () => isDragging = false);
+  }
 
-    // --- WebGL setup ---
-    function initWebGL() {
-    gl = canvas.getContext("webgl");
-    if (!gl) { alert("WebGL not supported"); return; }
+  // Shadows
+  wire("shadowHue", "shadowHue", v => `${v}`);
+  wire("shadowTint", "shadowTint", v => v.toFixed(2));
 
-    // Vertex shader
-    const vsSource = `
-        attribute vec2 aPos;
-        attribute vec2 aTex;
-        varying vec2 vTex;
-        uniform float uZoom;
-        uniform vec2 uOffset;
-        void main() {
-        gl_Position = vec4(aPos, 0, 1);
-        vTex = (aTex - 0.5)/uZoom + 0.5 - uOffset;
-        }
-    `;
+  // Red
+  wire("redHue", "redHue", v => `${v}`);
+  wire("redSat", "redSat", v => v.toFixed(2));
 
-    // Fragment shader (HSL adjustment)
-    const fsSource = `
-        precision mediump float;
-        varying vec2 vTex;
-        uniform sampler2D uTexture;
-        uniform float uHue;
-        uniform float uSat;
-        uniform float uLight;
+  // Green
+  wire("greenHue", "greenHue", v => `${v}`);
+  wire("greenSat", "greenSat", v => v.toFixed(2));
 
-        vec3 rgb2hsl(vec3 c){
-            float maxC = max(c.r,max(c.g,c.b));
-            float minC = min(c.r,min(c.g,c.b));
-            float l = (maxC + minC)/2.0;
-            float s = 0.0;
-            float h = 0.0;
-            if(maxC != minC){
-                float d = maxC - minC;
-                s = l>0.5? d/(2.0-maxC-minC): d/(maxC+minC);
-                if(maxC==c.r) h=(c.g-c.b)/d + (c.g<c.b?6.0:0.0);
-                else if(maxC==c.g) h=(c.b-c.r)/d + 2.0;
-                else h=(c.r-c.g)/d + 4.0;
-                h/=6.0;
-            }
-            return vec3(h,s,l);
-        }
+  // Blue
+  wire("blueHue", "blueHue", v => `${v}`);
+  wire("blueSat", "blueSat", v => v.toFixed(2));
 
-        vec3 hsl2rgb(vec3 c){
-            float r, g, b;
-            if(c.y==0.0) r=g=b=c.z;
-            else{
-                float q = c.z<0.5? c.z*(1.0+c.y): c.z+c.y-c.z*c.y;
-                float p = 2.0*c.z - q;
-                float hk = c.x;
-                float t[3];
-                t[0]=hk+1.0/3.0;
-                t[1]=hk;
-                t[2]=hk-1.0/3.0;
-                for(int i=0;i<3;i++){
-                    if(t[i]<0.0) t[i]+=1.0;
-                    if(t[i]>1.0) t[i]-=1.0;
-                }
-                float tc;
-                // r
-                tc=t[0]; if(tc<1.0/6.0) r=p+(q-p)*6.0*tc;
-                else if(tc<1.0/2.0) r=q;
-                else if(tc<2.0/3.0) r=p+(q-p)*(2.0/3.0-tc)*6.0;
-                else r=p;
-                // g
-                tc=t[1]; if(tc<1.0/6.0) g=p+(q-p)*6.0*tc;
-                else if(tc<1.0/2.0) g=q;
-                else if(tc<2.0/3.0) g=p+(q-p)*(2.0/3.0-tc)*6.0;
-                else g=p;
-                // b
-                tc=t[2]; if(tc<1.0/6.0) b=p+(q-p)*6.0*tc;
-                else if(tc<1.0/2.0) b=q;
-                else if(tc<2.0/3.0) b=p+(q-p)*(2.0/3.0-tc)*6.0;
-                else b=p;
-            }
-            return vec3(r,g,b);
-        }
 
-        void main(){
-            vec4 color = texture2D(uTexture,vTex);
-            vec3 hsl = rgb2hsl(color.rgb);
-            hsl.x += uHue/360.0;
-            hsl.y *= uSat;
-            hsl.z *= uLight;
-            gl_FragColor = vec4(hsl2rgb(hsl), color.a);
-        }
-    `;
-
-    program = createProgram(vsSource, fsSource);
-    gl.useProgram(program);
-
-    // Create quad
-    const vertices = new Float32Array([
-        -1,-1, 0,0,
-        1,-1, 1,0,
-        -1, 1, 0,1,
-        1, 1, 1,1
-    ]);
-
-    const vbo = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER,vbo);
-    gl.bufferData(gl.ARRAY_BUFFER,vertices,gl.STATIC_DRAW);
-
-    const aPos = gl.getAttribLocation(program,"aPos");
-    const aTex = gl.getAttribLocation(program,"aTex");
-    gl.enableVertexAttribArray(aPos);
-    gl.vertexAttribPointer(aPos,2,gl.FLOAT,false,16,0);
-    gl.enableVertexAttribArray(aTex);
-    gl.vertexAttribPointer(aTex,2,gl.FLOAT,false,16,8);
-
-    // Upload texture
-    texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D,texture);
-    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,img);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-
-    drawImage();
-    }
-
-    function drawImage(){
-    gl.viewport(0,0,canvas.width,canvas.height);
-    gl.clearColor(0,0,0,0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-
-    gl.useProgram(program);
-    gl.uniform1f(gl.getUniformLocation(program,"uHue"),hue);
-    gl.uniform1f(gl.getUniformLocation(program,"uSat"),sat);
-    gl.uniform1f(gl.getUniformLocation(program,"uLight"),light);
-    gl.uniform1f(gl.getUniformLocation(program,"uZoom"),zoom);
-    gl.uniform2f(gl.getUniformLocation(program,"uOffset"),offsetX,offsetY);
-
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D,texture);
-    gl.uniform1i(gl.getUniformLocation(program,"uTexture"),0);
-
-    gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
-    }
-
-    // Helper: create shader program
-    function createProgram(vsSource, fsSource){
-    const vs = gl.createShader(gl.VERTEX_SHADER);
-    gl.shaderSource(vs,vsSource);
-    gl.compileShader(vs);
-    if(!gl.getShaderParameter(vs,gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(vs));
-
-    const fs = gl.createShader(gl.FRAGMENT_SHADER);
-    gl.shaderSource(fs,fsSource);
-    gl.compileShader(fs);
-    if(!gl.getShaderParameter(fs,gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(fs));
-
-    const prog = gl.createProgram();
-    gl.attachShader(prog,vs);
-    gl.attachShader(prog,fs);
-    gl.linkProgram(prog);
-    if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(prog));
-    return prog;
-    }
-
-    // --- Export full-res ---
-    document.getElementById("exportBtn").onclick = () => {
-    const fullCanvas = document.createElement("canvas");
-    fullCanvas.width = imgWidth;
-    fullCanvas.height = imgHeight;
-    const ctx = fullCanvas.getContext("2d");
-    ctx.drawImage(img, 0, 0);
-    // TODO: apply same HSL adjustments to full-res (can use JS or WebGL offscreen)
-    const dataURL = fullCanvas.toDataURL("image/png");
-    const a = document.createElement("a");
-    a.href = dataURL;
-    a.download = "edited.png";
-    a.click();
-    };
+// ------------------------------------ //
 
 </script>
 </body>
