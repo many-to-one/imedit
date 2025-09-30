@@ -17,7 +17,15 @@
       gap: 5px;
     }
 
-    canvas { border: 1px solid #555; display: block; margin-bottom: 1em; }
+    /* canvas { border: 1px solid #555; display: block; margin-bottom: 1em; } */
+    canvas {
+      border: 1px solid #555;
+      display: block;
+      margin-bottom: 1em;
+      max-width: 80vw;   /* responsive shrink if window is small */
+      height: auto;      /* keep aspect ratio */
+      object-fit: contain;
+    }
 
     /* .controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; } */
 
@@ -44,8 +52,15 @@
 
     .group { background: #333; padding: 8px; border-radius: 6px; }
 
-    #calibration-panel { background:#2c2c2c; border-radius:8px; padding:10px; margin-top:12px; }
-    #calibration-panel h3 { margin:0 0 8px 0; font-size:14px; }
+    #calib-title {margin:0 0 8px 0; font-size:14px;}
+    #calibration-panel {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      background-color: silver;
+      padding: 5px;
+      color: black;
+      cursor: pointer;
+    }
     #calibration-panel fieldset { border:1px solid #444; padding:8px; margin-bottom:8px; }
     #calibration-panel legend { padding:0 6px; font-weight:bold; }
     #calibration-panel label { display:block; font-size:12px; margin-top:8px; color:#ddd; }
@@ -69,6 +84,59 @@
     <div class="menuHSL">
 
       <div class="colorPanel">
+
+        <div class="panel">
+          <h3>Basic Adjustments</h3>
+          <label>Temperature <input type="range" id="temp" min="-100" max="100" value="0">
+            <span id="temperatureValue">0</span>
+          </label>
+          <label>Tint <input type="range" id="tint" min="-100" max="100" value="0">
+            <span id="tintValue">0</span>
+          </label>
+          <label>Exposure <input type="range" id="exposure" min="-2" max="2" step="0.1" value="0">
+            <span id="exposureValue">0</span>
+          </label>
+          <label>Contrast <input type="range" id="contrast" min="-100" max="100" value="0">
+            <span id="contrastValue">0</span>
+          </label>
+          <label>Highlights <input type="range" id="highlights" min="-100" max="100" value="0">
+            <span id="highlightsValue">0</span>
+          </label>
+          <label>Shadows <input type="range" id="shadows" min="-100" max="100" value="0">
+            <span id="shadowsValue">0</span>
+          </label>
+        </div>
+
+        <div class="curve-box">
+          <h3>Curve</h3>
+          <svg id="curve">
+            <path id="curvePath" d="M 0 200 Q 100 100 200 0" />
+            <circle cx="0" cy="200" r="6" />
+            <circle cx="100" cy="100" r="6" class="draggable" />
+            <circle cx="200" cy="0" r="6" />
+          </svg>
+        </div>
+
+        <!-- Curve panel (simple 3-point parametric controls) -->
+      <!-- <div class="card">
+        <h3>Tone Curve (3pt)</h3>
+        <div class="row">
+          <label for="curveShadow">Curve Shadow</label>
+          <input id="curveShadow" type="range" min="0" max="1" step="0.01" value="0">
+          <div class="value" id="curveShadowVal">0.00</div>
+        </div>
+        <div class="row">
+          <label for="curveMid">Curve Mid</label>
+          <input id="curveMid" type="range" min="0" max="1" step="0.01" value="0.5">
+          <div class="value" id="curveMidVal">0.50</div>
+        </div>
+        <div class="row">
+          <label for="curveHighlight">Curve Highlight</label>
+          <input id="curveHighlight" type="range" min="0" max="1" step="0.01" value="1">
+          <div class="value" id="curveHighlightVal">1.00</div>
+        </div>
+      </div> -->
+
          <div class="horisontal-flex">
           <div class="crclHSL" id="Red" style="background-color: red;" onclick="showHSL('Red')"></div>
           <div class="crclHSL" id="Orange" style="background-color: orange;" onclick="showHSL('Orange')"></div>
@@ -83,8 +151,8 @@
          <div class="controls" id="controls"></div>
 
          <!-- Calibration panel (HTML) -->
+        <h3 id="calib-title" onclick="openCalib()">Calibration</h3>
         <div id="calibration-panel" class="group">
-          <h3>Calibration</h3>
 
           <fieldset>
             <legend>Shadows</legend>
@@ -149,6 +217,8 @@ canvas.style.transform = "rotate(180deg) scaleX(-1)";
 const gl = canvas.getContext("webgl"); // WebGL1
 
 // ---------- Shaders ----------
+
+// Vertex shader
 const vsSrc = `
 attribute vec2 a_pos;
 attribute vec2 a_uv;
@@ -159,10 +229,25 @@ void main() {
 }
 `;
 
+// Fragment shader
 const fsSrc = `
 precision mediump float;
 varying vec2 v_uv;
 uniform sampler2D u_tex;
+
+/* Basic adjustments */
+uniform float u_exposure;   // stops
+uniform float u_contrast;   // -1..+1
+uniform float u_highlights; // -1..+1
+uniform float u_shadows;    // -1..+1
+uniform float u_whites;     // -1..+1
+uniform float u_blacks;     // -1..+1
+
+/* Tone curve (3-point) */
+uniform float u_curveShadow;
+uniform float u_curveMid;
+uniform float u_curveHighlight;
+
 
 // 24 HSL band uniforms (8×3)
 uniform float u_hue0; uniform float u_sat0; uniform float u_lig0;
@@ -240,10 +325,52 @@ float hueDist(float a, float b){
   return min(d, 1.0 - d);
 }
 
+/* simple 3-point curve interpolation */
+float applyCurve(float lum) {
+  // control points given as uniforms: u_curveShadow (x=0), u_curveMid (x=0.5), u_curveHighlight (x=1)
+  // we'll do a smooth interpolation: shadows->mid for lum in [0,0.5], mid->high for lum in (0.5,1]
+  if (lum < 0.5) {
+    float t = lum / 0.5;
+    return mix(u_curveShadow, u_curveMid, t);
+  } else {
+    float t = (lum - 0.5) / 0.5;
+    return mix(u_curveMid, u_curveHighlight, t);
+  }
+}
+
 void main(){
   vec4 tex = texture2D(u_tex, v_uv);
   vec3 rgb = tex.rgb;
   vec3 hsl = rgb2hsl(rgb);
+
+  // --- Basic global adjustments ---
+  rgb *= pow(2.0, u_exposure); // exposure in stops
+
+  // Contrast (pivot around 0.5)
+  rgb = (rgb - 0.5) * (1.0 + u_contrast) + 0.5;
+
+  // Highlights/Shadows/Whites/Blacks
+  float lum = dot(rgb, vec3(0.2126,0.7152,0.0722));
+
+  float hFactor = smoothstep(0.5,1.0,lum);
+  rgb -= u_highlights * hFactor;
+
+  float sFactor = 1.0 - smoothstep(0.0,0.5,lum);
+  rgb += u_shadows * sFactor;
+
+  rgb += u_whites * smoothstep(0.8,1.0,lum);
+  rgb += u_blacks * (1.0 - smoothstep(0.0,0.2,lum));
+
+  // clamp
+  rgb = clamp(rgb, 0.0, 1.0);
+
+  // --- Tone Curve (3-point parametric) ---
+  float curveY = mix(
+    mix(u_curveShadow, u_curveMid, lum*2.0),   // shadows-mid
+    mix(u_curveMid, u_curveHighlight, (lum-0.5)*2.0), // mid-high
+    step(0.5, lum)
+  );
+  rgb = mix(rgb, vec3(curveY), 0.25); // blend strength
 
   // --- HSL per-band
   int band = int(floor(hsl.x * 8.0));
@@ -255,7 +382,7 @@ void main(){
   rgb = hsl2rgb(hsl);
 
   // --- Shadows calibration
-  float lum = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+  // float lum = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
   float shadowFactor = smoothstep(0.0, 0.5, 1.0 - lum);
   if (shadowFactor > 0.0001) {
     vec3 sh = rgb2hsl(rgb);
@@ -327,6 +454,19 @@ gl.vertexAttribPointer(a_pos,2,gl.FLOAT,false,16,0);
 gl.vertexAttribPointer(a_uv,2,gl.FLOAT,false,16,8);
 
 // ---------- Uniforms ----------
+
+const basicUniforms = {
+  exposure: gl.getUniformLocation(prog, "u_exposure"),
+  contrast: gl.getUniformLocation(prog, "u_contrast"),
+  highlights: gl.getUniformLocation(prog, "u_highlights"),
+  shadows: gl.getUniformLocation(prog, "u_shadows"),
+  whites: gl.getUniformLocation(prog, "u_whites"),
+  blacks: gl.getUniformLocation(prog, "u_blacks"),
+  curveShadow: gl.getUniformLocation(prog, "u_curveShadow"),
+  curveMid: gl.getUniformLocation(prog, "u_curveMid"),
+  curveHighlight: gl.getUniformLocation(prog, "u_curveHighlight")
+};
+
 const uniforms = {};
 function getUniforms(){
   for(let i=0;i<8;i++){
@@ -350,10 +490,16 @@ const calUniforms = {
 };
 
 let tex=null;
-function setTextureFromImageBitmap(bmp){
-  canvas.width=800; canvas.height=600;
-  gl.viewport(0,0,canvas.width,canvas.height);
-  if(!tex) tex=gl.createTexture();
+
+function setTextureFromImageBitmap(bmp) {
+  // Match canvas to image resolution
+  canvas.width = bmp.width;
+  canvas.height = bmp.height;
+
+  // Resize GL viewport
+  gl.viewport(0, 0, canvas.width, canvas.height);
+
+  if (!tex) tex = gl.createTexture();
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, tex);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -361,15 +507,35 @@ function setTextureFromImageBitmap(bmp){
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,bmp);
+
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bmp);
+
   draw();
 }
 
 
+/* ---------- State holders (JS) ---------- */
+const basicValues = {
+  exposure: 0.0, contrast: 0.0,
+  highlights: 0.0, shadows: 0.0, whites: 0.0, blacks: 0.0,
+  curveShadow: 0.0, curveMid: 0.5, curveHighlight: 1.0
+};
 
 function draw(){
   gl.clear(gl.COLOR_BUFFER_BIT);
   gl.uniform1i(gl.getUniformLocation(prog,"u_tex"),0);
+
+  gl.uniform1f(basicUniforms.exposure, basicValues.exposure);
+  gl.uniform1f(basicUniforms.contrast, basicValues.contrast);
+  gl.uniform1f(basicUniforms.highlights, basicValues.highlights);
+  gl.uniform1f(basicUniforms.shadows, basicValues.shadows);
+  gl.uniform1f(basicUniforms.whites, basicValues.whites);
+  gl.uniform1f(basicUniforms.blacks, basicValues.blacks);
+
+  gl.uniform1f(basicUniforms.curveShadow, basicValues.curveShadow);
+  gl.uniform1f(basicUniforms.curveMid, basicValues.curveMid);
+  gl.uniform1f(basicUniforms.curveHighlight, basicValues.curveHighlight);
+
   for(let i=0;i<8;i++){
     gl.uniform1f(uniforms[`hue${i}`], Number(sliders[i].hue.value));
     gl.uniform1f(uniforms[`sat${i}`], Number(sliders[i].sat.value));
@@ -389,7 +555,38 @@ function draw(){
   gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
 }
 
-// ---------- UI ----------
+
+
+/* ---------- Basic controls wiring (classic HTML) ---------- */
+function wireBasic(id, field, fmt = v => v.toFixed(2), transform = v => v) {
+  const el = document.getElementById(id);
+  const valEl = document.getElementById(id + 'Value');
+  if(!el) return;
+  // init value
+  el.value = basicValues[field];
+  valEl.textContent = fmt(basicValues[field]);
+  el.addEventListener('input', () => {
+    const raw = Number(el.value);
+    basicValues[field] = transform(raw);
+    valEl.textContent = fmt(raw);
+    draw();
+  });
+}
+
+/* map slider ids -> fields in basicValues */
+wireBasic('exposure', 'exposure', v => Number(v).toFixed(2), v => v); // stops directly
+wireBasic('contrast', 'contrast', v => Number(v).toFixed(2), v => v);
+wireBasic('highlights', 'highlights', v => Number(v).toFixed(2), v => v);
+wireBasic('shadows', 'shadows', v => Number(v).toFixed(2), v => v);
+wireBasic('whites', 'whites', v => Number(v).toFixed(2), v => v);
+wireBasic('blacks', 'blacks', v => Number(v).toFixed(2), v => v);
+
+wireBasic('curveShadow','curveShadow', v => Number(v).toFixed(2), v => v);
+wireBasic('curveMid','curveMid', v => Number(v).toFixed(2), v => v);
+wireBasic('curveHighlight','curveHighlight', v => Number(v).toFixed(2), v => v);
+
+
+// ---------- HSL UI ----------
 const fileInput=document.getElementById("fileInput");
 const statusEl=document.getElementById("status");
 fileInput.addEventListener("change",async()=>{
@@ -443,52 +640,21 @@ function showHSL(color) {
   globalHSL = color;
 }
 
-const controlsRoot = document.getElementById("controls");
-
-// -------------------------------------- //
-
-// Calibration controls
-// function makeSlider(label, min, max, step, value, oninput){
-//   const wrap = document.createElement("div");
-//   wrap.style.marginBottom = "6px";
-//   const lab = document.createElement("label"); lab.textContent = label;
-//   const input = document.createElement("input");
-//   input.type = "range"; input.min=min; input.max=max; input.step=step; input.value=value;
-//   input.style.width = "100%";
-//   input.addEventListener("input", ()=> oninput(Number(input.value)));
-//   wrap.appendChild(lab); wrap.appendChild(input);
-//   return {wrap, input};
-// }
-
-// const calibrationValues = {
-//   shadowHue: 0, shadowTint: 1,
-//   redHue: 0, redSat:1,
-//   greenHue:0, greenSat:1,
-//   blueHue:0, blueSat:1
-// };
-
-// const shBox = document.createElement("div"); shBox.style.marginTop = "12px";
-// shBox.innerHTML = "<b>Calibration — Shadows</b>";
-// const shHue = makeSlider("Shadow Hue (deg)", -180, 180, 1, 0, v => { calibrationValues.shadowHue = v; draw(); });
-// const shTint = makeSlider("Shadow Tint (sat)", 0.0, 2.0, 0.01, 1.0, v => { calibrationValues.shadowTint = v; draw(); });
-// shBox.appendChild(shHue.wrap); shBox.appendChild(shTint.wrap);
-// controlsRoot.appendChild(shBox);
-
-// const primBox = document.createElement("div"); primBox.style.marginTop = "12px";
-// primBox.innerHTML = "<b>Calibration — RGB Primaries</b>";
-// const rHue = makeSlider("Red Hue (deg)", -30, 30, 0.5, 0, v => { calibrationValues.redHue = v; draw(); });
-// const rSat = makeSlider("Red Sat (scale)", 0.0, 2.0, 0.01, 1.0, v => { calibrationValues.redSat = v; draw(); });
-// const gHue = makeSlider("Green Hue (deg)", -30, 30, 0.5, 0, v => { calibrationValues.greenHue = v; draw(); });
-// const gSat = makeSlider("Green Sat (scale)", 0.0, 2.0, 0.01, 1.0, v => { calibrationValues.greenSat = v; draw(); });
-// const bHue = makeSlider("Blue Hue (deg)", -30, 30, 0.5, 0, v => { calibrationValues.blueHue = v; draw(); });
-// const bSat = makeSlider("Blue Sat (scale)", 0.0, 2.0, 0.01, 1.0, v => { calibrationValues.blueSat = v; draw(); });
-
-// primBox.appendChild(rHue.wrap); primBox.appendChild(rSat.wrap);
-// primBox.appendChild(gHue.wrap); primBox.appendChild(gSat.wrap);
-// primBox.appendChild(bHue.wrap); primBox.appendChild(bSat.wrap);
-// controlsRoot.appendChild(primBox);
+// const controlsRoot = document.getElementById("controls");
 
 
+
+// --------------------- CALIBRATION --------------------- //
+
+function openCalib () {
+  var calib = document.getElementById('calibration-panel');
+
+  if ( calib.style.display === 'block') {
+    calib.style.display = 'none';
+  } else {
+    calib.style.display = 'block';
+  }
+}
 // If calibrationValues wasn't defined yet, define a fallback:
   window.calibrationValues = window.calibrationValues || {
     shadowHue:0, shadowTint:1,
