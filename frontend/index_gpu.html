@@ -1,331 +1,677 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>WebGL HSL Editor</title>
-  <style>
-    body { font-family: system-ui, sans-serif; margin: 16px; }
-    .controls { display: grid; gap: 10px; max-width: 600px; }
-    .row { display: grid; grid-template-columns: 160px 1fr 60px; gap: 10px; align-items: center; }
-    /*canvas { display: block; max-width: 100%; margin-top: 16px; border-radius: 8px; }*/
-
-    #canvasWrapper {
-      display: flex;
-      justify-content: center;
-      align-items: start;
-      height: 100vh;
-      overflow: hidden;
-      transform: scaleX(-1) rotate(180deg);
-    }
-
-    canvas {
-      width: 75vh;
-      height: 100vh;
-      max-width: 900px;
-      max-height: 1200px;
-      object-fit: contain;
-      transform-origin: top center;
-    }
-
-    button { padding: 8px 14px; border-radius: 8px; border: 0; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
-    input[type="range"] { width: 100%; }
-  </style>
+<meta charset="utf-8" />
+<title>Lightroom-style Editor — WebGL + HTML controls</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  :root {
+    --bg:#222; --card:#2d2d2d; --muted:#9aa; --accent:#6cf;
+  }
+  body{margin:12px;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:var(--bg);color:#eee;display:flex;gap:16px}
+  main{flex:1 1 auto;min-width:300px}
+  aside{width:360px;max-height:calc(100vh - 24px);overflow:auto}
+  .card{background:var(--card);padding:10px;border-radius:8px;margin-bottom:12px}
+  .card-img{margin-left: 30%; width: 1000px;}
+  h2{margin:0 0 12px 0}
+  canvas{width:100%;height:auto;border:1px solid #444;background:#111;display:block; transform: rotateX(180deg);}
+  /* canvas{width:100%;height:auto;display:block; transform: rotateX(180deg);} */
+  .row{display:flex;gap:8px;align-items:center;margin:6px 0}
+  .row label{flex:1 1 auto;color:var(--muted);font-size:13px}
+  .row input[type=range]{flex:1 1 160px}
+  .value{width:56px;text-align:right;color:var(--accent);font-variant-numeric:tabular-nums}
+  .group{padding:8px;border-radius:6px;background:#363636;margin-bottom:6px}
+  button{background:#444;color:#fff;border:0;padding:6px 8px;border-radius:6px;cursor:pointer}
+  button:hover{background:#555}
+  @media(max-width:900px){body{flex-direction:column}aside{width:100%;order:2}main{order:1}}
+</style>
 </head>
 <body>
-  <h1>HSL (WebGL) — instant preview</h1>
+  <main>
+    <h2>Lightroom-like editor (WebGL)</h2>
 
-  <div class="controls">
-    <div class="row">
-      <label>Image:</label>
-      <input type="file" id="fileInput" accept="image/*" />
-      <span></span>
+    <div class="card">
+      <input id="fileInput" type="file" accept="image/*">
+      <div id="status" style="font-size:12px;color:var(--muted);margin-top:6px">No image loaded</div>
     </div>
 
-    <div class="row">
-      <label>Hue shift (°):</label>
-      <input type="range" id="hue" min="-180" max="180" value="0" step="1" />
-      <span id="hueVal">0</span>
+    <!-- <div class="card-img">
+      <canvas id="glcanvas" width="800" height="600"></canvas>
+    </div> -->
+
+    <div class="card" style="margin-bottom: 10px;">
+      <label>Zoom: <span id="zoomVal">100%</span></label>
+      <input id="zoomSlider" type="range" min="10" max="300" value="100">
     </div>
 
-    <div class="row">
-      <label>Saturation scale:</label>
-      <input type="range" id="sat" min="0" max="2" value="1" step="0.05" />
-      <span id="satVal">1.00</span>
+    <div class="card-img" style="width:800px; height:600px; overflow:hidden; border:1px solid #ccc;">
+      <canvas id="glcanvas" width="800" height="600" style="display:block;"></canvas>
     </div>
 
-    <div class="row">
-      <label>Lightness scale:</label>
-      <input type="range" id="light" min="0" max="2" value="1" step="0.05" />
-      <span id="lightVal">1.00</span>
-    </div>
+  </main>
 
-    <div class="row">
-      <label></label>
-      <div style="display:flex; gap:10px;">
-        <button id="uploadBtn">Upload to backend</button>
-        <button id="exportBtn">Export full-res (backend)</button>
+  <aside>
+    <div id="controls">
+      <!-- Basic panel -->
+      <div class="card">
+        <h3>Basic</h3>
+
+        <div class="card">
+          <label>Zoom: <span id="zoomVal">100%</span></label>
+          <input id="zoomSlider" type="range" min="10" max="300" value="100">
+        </div>
+
+        <div class="row">
+          <label for="temp">Temperature</label>
+          <input id="temp" type="range" min="-100" max="100" step="1" value="0">
+          <div class="value" id="tempVal">0</div>
+        </div>
+
+        <div class="row">
+          <label for="tint">Tint</label>
+          <input id="tint" type="range" min="-100" max="100" step="1" value="0">
+          <div class="value" id="tintVal">0</div>
+        </div>
+
+        <div class="row">
+          <label for="exposure">Exposure (stops)</label>
+          <input id="exposure" type="range" min="-2" max="2" step="0.01" value="0">
+          <div class="value" id="exposureVal">0.00</div>
+        </div>
+
+        <div class="row">
+          <label for="contrast">Contrast</label>
+          <input id="contrast" type="range" min="-1" max="1" step="0.01" value="0">
+          <div class="value" id="contrastVal">0.00</div>
+        </div>
+
+        <div class="row">
+          <label for="highlights">Highlights</label>
+          <input id="highlights" type="range" min="-1" max="1" step="0.01" value="0">
+          <div class="value" id="highlightsVal">0.00</div>
+        </div>
+
+        <div class="row">
+          <label for="shadows">Shadows</label>
+          <input id="shadows" type="range" min="-1" max="1" step="0.01" value="0">
+          <div class="value" id="shadowsVal">0.00</div>
+        </div>
+
+        <div class="row">
+          <label for="whites">Whites</label>
+          <input id="whites" type="range" min="-1" max="1" step="0.01" value="0">
+          <div class="value" id="whitesVal">0.00</div>
+        </div>
+
+        <div class="row">
+          <label for="blacks">Blacks</label>
+          <input id="blacks" type="range" min="-1" max="1" step="0.01" value="0">
+          <div class="value" id="blacksVal">0.00</div>
+        </div>
       </div>
-      <span id="status"></span>
+
+      <!-- Curve -->
+      <div class="card">
+        <h3>Tone Curve (3-pt)</h3>
+        <div class="row">
+          <label for="curveShadow">Curve Shadow</label>
+          <input id="curveShadow" type="range" min="0" max="1" step="0.01" value="0">
+          <div class="value" id="curveShadowVal">0.00</div>
+        </div>
+        <div class="row">
+          <label for="curveMid">Curve Mid</label>
+          <input id="curveMid" type="range" min="0" max="1" step="0.01" value="0.5">
+          <div class="value" id="curveMidVal">0.50</div>
+        </div>
+        <div class="row">
+          <label for="curveHighlight">Curve Highlight</label>
+          <input id="curveHighlight" type="range" min="0" max="1" step="0.01" value="1">
+          <div class="value" id="curveHighlightVal">1.00</div>
+        </div>
+      </div>
+
+      <!-- HSL -->
+      <div class="card">
+        <h3>HSL Bands</h3>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          <button onclick="showHSL('Red')">Red</button>
+          <button onclick="showHSL('Orange')">Orange</button>
+          <button onclick="showHSL('Yellow')">Yellow</button>
+          <button onclick="showHSL('Green')">Green</button>
+          <button onclick="showHSL('Aqua')">Aqua</button>
+          <button onclick="showHSL('Blue')">Blue</button>
+          <button onclick="showHSL('Purple')">Purple</button>
+          <button onclick="showHSL('Magenta')">Magenta</button>
+        </div>
+        <div id="hslContainer"></div>
+      </div>
+
+      <!-- Calibration -->
+      <div class="card">
+        <h3>Calibration</h3>
+
+        <div class="row">
+          <label for="shadowHue">Shadow Hue</label>
+          <input id="shadowHue" type="range" min="-180" max="180" step="1" value="0">
+          <div class="value" id="shadowHueVal">0</div>
+        </div>
+        <div class="row">
+          <label for="shadowTint">Shadow Tint</label>
+          <input id="shadowTint" type="range" min="0" max="2" step="0.01" value="1">
+          <div class="value" id="shadowTintVal">1.00</div>
+        </div>
+
+        <div style="margin-top:6px;font-size:12px;color:var(--muted)">Primaries</div>
+
+        <div class="row">
+          <label for="redHue">Red Hue</label>
+          <input id="redHue" type="range" min="-30" max="30" step="0.5" value="0">
+          <div class="value" id="redHueVal">0</div>
+        </div>
+        <div class="row">
+          <label for="redSat">Red Sat</label>
+          <input id="redSat" type="range" min="0" max="2" step="0.01" value="1">
+          <div class="value" id="redSatVal">1.00</div>
+        </div>
+
+        <div class="row">
+          <label for="greenHue">Green Hue</label>
+          <input id="greenHue" type="range" min="-30" max="30" step="0.5" value="0">
+          <div class="value" id="greenHueVal">0</div>
+        </div>
+        <div class="row">
+          <label for="greenSat">Green Sat</label>
+          <input id="greenSat" type="range" min="0" max="2" step="0.01" value="1">
+          <div class="value" id="greenSatVal">1.00</div>
+        </div>
+
+        <div class="row">
+          <label for="blueHue">Blue Hue</label>
+          <input id="blueHue" type="range" min="-30" max="30" step="0.5" value="0">
+          <div class="value" id="blueHueVal">0</div>
+        </div>
+        <div class="row">
+          <label for="blueSat">Blue Sat</label>
+          <input id="blueSat" type="range" min="0" max="2" step="0.01" value="1">
+          <div class="value" id="blueSatVal">1.00</div>
+        </div>
+      </div>
+
     </div>
-  </div>
+  </aside>
 
-  <!-- <canvas id="glcanvas" width="800" height="600"></canvas> -->
+<script>
 
-  <div id="canvasWrapper" style="overflow: hidden;">
-    <canvas id="glcanvas" width="800" height="600"></canvas>
-  </div>
+/* ---------- WebGL setup and shader (complete) ---------- */
+const canvas = document.getElementById('glcanvas');
+const gl = canvas.getContext('webgl');
+if(!gl){ alert('WebGL not supported'); throw new Error('WebGL not supported'); }
 
+const zoomSlider = document.getElementById('zoomSlider'); 
+const zoomVal = document.getElementById('zoomVal');
 
+zoomSlider.addEventListener('input', () => {
+  const scale = Number(zoomSlider.value) / 100;
+  canvas.style.transform = `scale(${scale})`;
+  canvas.style.transformOrigin = 'top left';
+  zoomVal.textContent = `${zoomSlider.value}%`;
+});
 
-  <script>
-    // ---------- WebGL boilerplate ----------
-    const canvas = document.getElementById('glcanvas');
-    // const canvasWidth = 800;
-    // const canvasHeight = 600;
+/* Vertex shader */
+const vsSrc = `
+attribute vec2 a_pos;
+attribute vec2 a_uv;
+varying vec2 v_uv;
+void main() {
+  v_uv = a_uv;
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
 
+/* Fragment shader: Basic + Curve + HSL + Calibration */
+const fsSrc = `
+precision mediump float;
+varying vec2 v_uv;
+uniform sampler2D u_tex;
 
-    // // Load image and create thumbnail
-    let img = new Image();
-      document.getElementById("fileInput").onchange = e => {
-      img.src = URL.createObjectURL(e.target.files[0]);
-    };
+/* Basic adjustments */
+uniform float u_temp;   // -1..1
+uniform float u_tint;   // -1..1
+uniform float u_exposure;   // stops (-2..2)
+uniform float u_contrast;   // -1..1
+uniform float u_highlights; // -1..1
+uniform float u_shadows;    // -1..1
+uniform float u_whites;     // -1..1
+uniform float u_blacks;     // -1..1
 
-    img.onload = () => {
-      imgWidth = img.width;
-      imgHeight = img.height;
-      initWebGL();
-    }
+/* Curve (3-pt) */
+uniform float u_curveShadow;
+uniform float u_curveMid;
+uniform float u_curveHighlight;
 
-    // Zoom & Pan
-    let zoom = 1;
+/* HSL bands (8*3) */
+uniform float u_hue0; uniform float u_sat0; uniform float u_lig0;
+uniform float u_hue1; uniform float u_sat1; uniform float u_lig1;
+uniform float u_hue2; uniform float u_sat2; uniform float u_lig2;
+uniform float u_hue3; uniform float u_sat3; uniform float u_lig3;
+uniform float u_hue4; uniform float u_sat4; uniform float u_lig4;
+uniform float u_hue5; uniform float u_sat5; uniform float u_lig5;
+uniform float u_hue6; uniform float u_sat6; uniform float u_lig6;
+uniform float u_hue7; uniform float u_sat7; uniform float u_lig7;
 
-    canvas.addEventListener("wheel", e => {
-      e.preventDefault();
-      zoom *= e.deltaY > 0 ? 0.9 : 1.1;
-      canvas.style.transform = `scale(${zoom})`;
-    });
+/* Calibration */
+uniform float u_shadowHue;
+uniform float u_shadowTint;
+uniform float u_redHue; uniform float u_redSat;
+uniform float u_greenHue; uniform float u_greenSat;
+uniform float u_blueHue; uniform float u_blueSat;
 
+/* Helpers: RGB <-> HSL */
+vec3 rgb2hsl(vec3 c){
+  float maxc = max(max(c.r,c.g),c.b);
+  float minc = min(min(c.r,c.g),c.b);
+  float h = 0.0; float s = 0.0; float l = (maxc + minc) * 0.5;
+  if(maxc != minc){
+    float d = maxc - minc;
+    s = l > 0.5 ? d / (2.0 - maxc - minc) : d / (maxc + minc);
+    if(maxc == c.r) h = (c.g - c.b) / d + (c.g < c.b ? 6.0 : 0.0);
+    else if(maxc == c.g) h = (c.b - c.r) / d + 2.0;
+    else h = (c.r - c.g) / d + 4.0;
+    h /= 6.0;
+  }
+  return vec3(h,s,l);
+}
+float hue2rgb(float p, float q, float t){
+  if(t < 0.0) t += 1.0;
+  if(t > 1.0) t -= 1.0;
+  if(t < 1.0/6.0) return p + (q - p) * 6.0 * t;
+  if(t < 1.0/2.0) return q;
+  if(t < 2.0/3.0) return p + (q - p) * (2.0/3.0 - t) * 6.0;
+  return p;
+}
+vec3 hsl2rgb(vec3 hsl){
+  float h=hsl.x, s=hsl.y, l=hsl.z;
+  if(s==0.0) return vec3(l);
+  float q = l < 0.5 ? l*(1.0+s) : l + s - l*s;
+  float p = 2.0*l - q;
+  return vec3( hue2rgb(p,q,h+1.0/3.0), hue2rgb(p,q,h), hue2rgb(p,q,h-1.0/3.0) );
+}
 
-    const gl = canvas.getContext('webgl', { premultipliedAlpha: false, alpha: false });
- 
-    if (!gl) { alert('WebGL not supported'); }
+/* HSL band selector (8 bands) */
+void getAdjustments(int band, out float hueShift, out float satScale, out float ligScale){
+  if(band==0){hueShift=u_hue0; satScale=u_sat0; ligScale=u_lig0;}
+  else if(band==1){hueShift=u_hue1; satScale=u_sat1; ligScale=u_lig1;}
+  else if(band==2){hueShift=u_hue2; satScale=u_sat2; ligScale=u_lig2;}
+  else if(band==3){hueShift=u_hue3; satScale=u_sat3; ligScale=u_lig3;}
+  else if(band==4){hueShift=u_hue4; satScale=u_sat4; ligScale=u_lig4;}
+  else if(band==5){hueShift=u_hue5; satScale=u_sat5; ligScale=u_lig5;}
+  else if(band==6){hueShift=u_hue6; satScale=u_sat6; ligScale=u_lig6;}
+  else {hueShift=u_hue7; satScale=u_sat7; ligScale=u_lig7;}
+}
 
-    const vsSrc = `
-      attribute vec2 a_pos;
-      attribute vec2 a_uv;
-      varying vec2 v_uv;
-      void main() {
-        v_uv = a_uv;
-        gl_Position = vec4(a_pos, 0.0, 1.0);
-      }
-    `;
+/* small helpers for calibration primaries */
+float weightSmooth(float dist, float sigma){ return exp(-0.5*(dist/sigma)*(dist/sigma)); }
+const float RED_HUE = 0.0;
+const float GREEN_HUE = 120.0/360.0;
+const float BLUE_HUE = 240.0/360.0;
+float hueDist(float a, float b){
+  float d = abs(a - b);
+  return min(d, 1.0 - d);
+}
 
-    // Fragment shader: RGB -> HSL -> adjust -> RGB
-    const fsSrc = `
-      precision mediump float;
-      varying vec2 v_uv;
-      uniform sampler2D u_tex;
-      uniform float u_hue;       // degrees
-      uniform float u_satScale;  // 0..2
-      uniform float u_ligScale;  // 0..2
+/* simple 3-pt curve */
+float applyCurve(float lum) {
+  if(lum < 0.5) {
+    float t = lum / 0.5;
+    return mix(u_curveShadow, u_curveMid, t);
+  } else {
+    float t = (lum - 0.5) / 0.5;
+    return mix(u_curveMid, u_curveHighlight, t);
+  }
+}
 
-      // rgb [0..1] -> hsl [0..1]
-      vec3 rgb2hsl(vec3 c){
-        float maxc = max(max(c.r, c.g), c.b);
-        float minc = min(min(c.r, c.g), c.b);
-        float h = 0.0;
-        float s = 0.0;
-        float l = (maxc + minc) * 0.5;
-        if(maxc != minc){
-          float d = maxc - minc;
-          s = l > 0.5 ? d / (2.0 - maxc - minc) : d / (maxc + minc);
-          if(maxc == c.r)      h = (c.g - c.b) / d + (c.g < c.b ? 6.0 : 0.0);
-          else if(maxc == c.g) h = (c.b - c.r) / d + 2.0;
-          else                 h = (c.r - c.g) / d + 4.0;
-          h /= 6.0;
-        }
-        return vec3(h, s, l);
-      }
+void main(){
+  vec4 tex = texture2D(u_tex, v_uv);
+  vec3 rgb = tex.rgb;
 
-      float hue2rgb(float p, float q, float t){
-        if(t < 0.0) t += 1.0;
-        if(t > 1.0) t -= 1.0;
-        if(t < 1.0/6.0) return p + (q - p) * 6.0 * t;
-        if(t < 1.0/2.0) return q;
-        if(t < 2.0/3.0) return p + (q - p) * (2.0/3.0 - t) * 6.0;
-        return p;
-      }
+  // ---------- White balance (approx) ----------
+  rgb.r *= (1.0 + u_temp * 0.15);
+  rgb.b *= (1.0 - u_temp * 0.15);
+  rgb.g *= (1.0 + u_tint * 0.06);
+  rgb = clamp(rgb, 0.0, 1.0);
 
-      vec3 hsl2rgb(vec3 hsl){
-        float h = hsl.x; float s = hsl.y; float l = hsl.z;
-        if(s == 0.0) return vec3(l);
-        float q = l < 0.5 ? l*(1.0+s) : l + s - l*s;
-        float p = 2.0*l - q;
-        return vec3(
-          hue2rgb(p,q,h + 1.0/3.0),
-          hue2rgb(p,q,h),
-          hue2rgb(p,q,h - 1.0/3.0)
-        );
-      }
+  // ---------- Exposure ----------
+  rgb *= pow(2.0, u_exposure);
 
-      void main(){
-        vec4 tex = texture2D(u_tex, v_uv);
-        vec3 hsl = rgb2hsl(tex.rgb);
+  // ---------- Contrast around 0.5 ----------
+  rgb = (rgb - 0.5) * (1.0 + u_contrast) + 0.5;
 
-        // hue shift in turns (deg / 360)
-        hsl.x = fract(hsl.x + (u_hue / 360.0));
-        hsl.y = clamp(hsl.y * u_satScale, 0.0, 1.0);
-        hsl.z = clamp(hsl.z * u_ligScale, 0.0, 1.0);
+  // ---------- Local tonal adjustments ----------
+  float lum = dot(rgb, vec3(0.2126,0.7152,0.0722));
+  float hFactor = smoothstep(0.5, 1.0, lum);       // highlights weight
+  float sFactor = 1.0 - smoothstep(0.0, 0.5, lum); // shadows weight
 
-        vec3 rgb = hsl2rgb(hsl);
-        gl_FragColor = vec4(rgb, tex.a);
-      }
-    `;
+  // Apply highlights/shadows/whites/blacks with scaled influence
+  rgb += u_highlights * 0.25 * hFactor;
+  rgb += u_shadows   * 0.25 * sFactor;
+  rgb += u_whites    * 0.15 * smoothstep(0.8,1.0,lum);
+  rgb += u_blacks    * 0.15 * (1.0 - smoothstep(0.0,0.2,lum));
 
-    function compile(type, src){
-      const sh = gl.createShader(type);
-      gl.shaderSource(sh, src);
-      gl.compileShader(sh);
-      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
-        throw new Error(gl.getShaderInfoLog(sh));
-      }
-      return sh;
-    }
+  rgb = clamp(rgb, 0.0, 1.0);
 
-    function program(vs, fs){
-      const p = gl.createProgram();
-      gl.attachShader(p, vs);
-      gl.attachShader(p, fs);
-      gl.linkProgram(p);
-      if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
-        throw new Error(gl.getProgramInfoLog(p));
-      }
-      return p;
-    }
+  // ---------- Tone curve (soft blend) ----------
+  float curveY = applyCurve(lum);
+  rgb = mix(rgb, vec3(curveY), 0.25);
 
-    const prog = program(compile(gl.VERTEX_SHADER, vsSrc), compile(gl.FRAGMENT_SHADER, fsSrc));
-    gl.useProgram(prog);
+  // ---------- HSL per-band ----------
+  vec3 hsl = rgb2hsl(rgb);
+  int band = int(floor(hsl.x * 8.0)); // 0..7
+  float hueShift, satScale, ligScale;
+  getAdjustments(band, hueShift, satScale, ligScale);
+  hsl.x = fract(hsl.x + hueShift / 360.0);
+  hsl.y = clamp(hsl.y * satScale, 0.0, 1.0);
+  hsl.z = clamp(hsl.z * ligScale, 0.0, 1.0);
+  rgb = hsl2rgb(hsl);
 
-    // Fullscreen quad
-    const quad = new Float32Array([
-      // pos   // uv
-      -1, -1,  0, 0,
-       1, -1,  1, 0,
-      -1,  1,  0, 1,
-       1,  1,  1, 1,
-    ]);
-    const buf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
+  // ---------- Shadows calibration ----------
+  float lum2 = dot(rgb, vec3(0.2126,0.7152,0.0722));
+  float shadowFactor = smoothstep(0.0, 0.5, 1.0 - lum2);
+  if(shadowFactor > 0.0001) {
+    vec3 sh = rgb2hsl(rgb);
+    sh.x = fract(sh.x + (u_shadowHue / 360.0) * shadowFactor);
+    sh.y = clamp(sh.y * mix(1.0, u_shadowTint, shadowFactor), 0.0, 1.0);
+    rgb = hsl2rgb(sh);
+  }
 
-    const a_pos = gl.getAttribLocation(prog, 'a_pos');
-    const a_uv  = gl.getAttribLocation(prog, 'a_uv');
-    gl.enableVertexAttribArray(a_pos);
-    gl.enableVertexAttribArray(a_uv);
-    gl.vertexAttribPointer(a_pos, 2, gl.FLOAT, false, 16, 0);
-    gl.vertexAttribPointer(a_uv,  2, gl.FLOAT, false, 16, 8);
+  // ---------- RGB primaries calibration ----------
+  vec3 p = rgb2hsl(rgb);
+  float dR = hueDist(p.x, RED_HUE); float wR = weightSmooth(dR, 0.08);
+  p.x = fract(p.x + (u_redHue / 360.0) * wR);
+  p.y = clamp(p.y * mix(1.0, u_redSat, wR), 0.0, 1.0);
 
-    // Uniforms
-    const u_tex = gl.getUniformLocation(prog, 'u_tex');
-    const u_hue = gl.getUniformLocation(prog, 'u_hue');
-    const u_sat = gl.getUniformLocation(prog, 'u_satScale');
-    const u_lig = gl.getUniformLocation(prog, 'u_ligScale');
+  float dG = hueDist(p.x, GREEN_HUE); float wG = weightSmooth(dG, 0.08);
+  p.x = fract(p.x + (u_greenHue / 360.0) * wG);
+  p.y = clamp(p.y * mix(1.0, u_greenSat, wG), 0.0, 1.0);
 
-    let tex = null;
-    let imgWidth = 0, imgHeight = 0;
-    function setTextureFromImageBitmap(bmp){
-      imgWidth = bmp.width; imgHeight = bmp.height;
+  float dB = hueDist(p.x, BLUE_HUE); float wB = weightSmooth(dB, 0.08);
+  p.x = fract(p.x + (u_blueHue / 360.0) * wB);
+  p.y = clamp(p.y * mix(1.0, u_blueSat, wB), 0.0, 1.0);
 
-      // fit canvas to image (keeps sharpness)
-      canvas.width = imgWidth;
-      canvas.height = imgHeight;
-      gl.viewport(0, 0, canvas.width, canvas.height);
+  rgb = hsl2rgb(p);
 
-      if (!tex) tex = gl.createTexture();
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, tex);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bmp);
+  gl_FragColor = vec4(rgb, tex.a);
+}
+`;
 
-      draw(); // initial
-    }
+/* ---------- compile + link helpers ---------- */
+function compileShader(type, src){
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if(!gl.getShaderParameter(sh, gl.COMPILE_STATUS)){
+    const msg = gl.getShaderInfoLog(sh);
+    console.error("Shader compile error:", msg);
+    throw new Error(msg);
+  }
+  return sh;
+}
+function linkProgram(vs, fs){
+  const p = gl.createProgram();
+  gl.attachShader(p, vs); gl.attachShader(p, fs);
+  gl.linkProgram(p);
+  if(!gl.getProgramParameter(p, gl.LINK_STATUS)){
+    const msg = gl.getProgramInfoLog(p);
+    console.error("Program link error:", msg);
+    throw new Error(msg);
+  }
+  return p;
+}
 
-    function draw(){
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.uniform1i(u_tex, 0);
-      gl.uniform1f(u_hue,  Number(hue.value));
-      gl.uniform1f(u_sat,  Number(sat.value));
-      gl.uniform1f(u_lig,  Number(light.value));
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    }
+const prog = linkProgram(compileShader(gl.VERTEX_SHADER, vsSrc), compileShader(gl.FRAGMENT_SHADER, fsSrc));
+gl.useProgram(prog);
 
-    // ---------- UI bindings ----------
-    const fileInput = document.getElementById('fileInput');
-    const hue   = document.getElementById('hue');
-    const sat   = document.getElementById('sat');
-    const light = document.getElementById('light');
-    const hueVal = document.getElementById('hueVal');
-    const satVal = document.getElementById('satVal');
-    const lightVal = document.getElementById('lightVal');
-    const statusEl = document.getElementById('status');
+/* ---------- quad attributes ---------- */
+const quad = new Float32Array([
+  -1, -1,  0, 0,
+   1, -1,  1, 0,
+  -1,  1,  0, 1,
+   1,  1,  1, 1,
+]);
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
 
-    fileInput.addEventListener('change', async () => {
-      const file = fileInput.files?.[0];
-      if (!file) return;
-      const bmp = await createImageBitmap(file, { premultiplyAlpha: 'default' });
-      setTextureFromImageBitmap(bmp);
-      statusEl.textContent = 'Loaded locally (GPU preview)';
-    });
+const a_pos = gl.getAttribLocation(prog, "a_pos");
+const a_uv  = gl.getAttribLocation(prog, "a_uv");
+gl.enableVertexAttribArray(a_pos);
+gl.enableVertexAttribArray(a_uv);
+gl.vertexAttribPointer(a_pos, 2, gl.FLOAT, false, 16, 0);
+gl.vertexAttribPointer(a_uv,  2, gl.FLOAT, false, 16, 8);
 
-    function onInput(){
-      hueVal.textContent = hue.value;
-      satVal.textContent = Number(sat.value).toFixed(2);
-      lightVal.textContent = Number(light.value).toFixed(2);
-      if (tex) draw();
-    }
-    hue.addEventListener('input', onInput);
-    sat.addEventListener('input', onInput);
-    light.addEventListener('input', onInput);
+/* ---------- uniform locations ---------- */
+/* basic */
+const basicUniforms = {
+  temp: gl.getUniformLocation(prog, "u_temp"),
+  tint: gl.getUniformLocation(prog, "u_tint"),
+  exposure: gl.getUniformLocation(prog, "u_exposure"),
+  contrast: gl.getUniformLocation(prog, "u_contrast"),
+  highlights: gl.getUniformLocation(prog, "u_highlights"),
+  shadows: gl.getUniformLocation(prog, "u_shadows"),
+  whites: gl.getUniformLocation(prog, "u_whites"),
+  blacks: gl.getUniformLocation(prog, "u_blacks"),
+  curveShadow: gl.getUniformLocation(prog, "u_curveShadow"),
+  curveMid: gl.getUniformLocation(prog, "u_curveMid"),
+  curveHighlight: gl.getUniformLocation(prog, "u_curveHighlight")
+};
 
-    // ---------- Backend integration ----------
-    // 1) Upload once (stores original in backend as CURRENT_IMAGE)
-    document.getElementById('uploadBtn').addEventListener('click', async () => {
-      const f = fileInput.files?.[0];
-      if (!f) { alert('Choose an image first'); return; }
-      const fd = new FormData();
-      fd.append('file', f);
-      statusEl.textContent = 'Uploading...';
-      const res = await fetch('/upload', { method: 'POST', body: fd });
-      if (!res.ok) { statusEl.textContent = 'Upload failed'; return; }
-      const data = await res.json();
-      statusEl.textContent = `Uploaded as ${data.filename}`;
-    });
+/* HSL */
+const uniforms = {};
+for(let i=0;i<8;i++){
+  uniforms[`hue${i}`] = gl.getUniformLocation(prog, `u_hue${i}`);
+  uniforms[`sat${i}`] = gl.getUniformLocation(prog, `u_sat${i}`);
+  uniforms[`lig${i}`] = gl.getUniformLocation(prog, `u_lig${i}`);
+}
 
-    // 2) Export full-res via backend (C++ exact output)
-    document.getElementById('exportBtn').addEventListener('click', async () => {
-      statusEl.textContent = 'Exporting full-res...';
-      const fd = new FormData();
-      fd.append('hue_shift', hue.value);
-      fd.append('sat_scale', sat.value);
-      fd.append('light_scale', light.value);
+/* calibration */
+const calUniforms = {
+  shadowHue: gl.getUniformLocation(prog, "u_shadowHue"),
+  shadowTint: gl.getUniformLocation(prog, "u_shadowTint"),
+  redHue: gl.getUniformLocation(prog, "u_redHue"),
+  redSat: gl.getUniformLocation(prog, "u_redSat"),
+  greenHue: gl.getUniformLocation(prog, "u_greenHue"),
+  greenSat: gl.getUniformLocation(prog, "u_greenSat"),
+  blueHue: gl.getUniformLocation(prog, "u_blueHue"),
+  blueSat: gl.getUniformLocation(prog, "u_blueSat")
+};
 
-      const r = await fetch('/adjust', { method: 'POST', body: fd });
-      if (!r.ok) { statusEl.textContent = 'Export failed'; return; }
-      const blob = await r.blob();
+/* ---------- texture & drawing ---------- */
+let tex = null;
+function setTextureFromImageBitmap(bmp){
+  // match canvas to image resolution for full quality
+  canvas.width = bmp.width;
+  canvas.height = bmp.height;
+  gl.viewport(0,0,canvas.width,canvas.height);
 
-      // Download file
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'result.png';
-      a.click();
-      URL.revokeObjectURL(a.href);
+  if(!tex) tex = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
 
-      statusEl.textContent = 'Exported ✔';
-    });
-  </script>
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bmp);
+
+  draw();
+}
+
+const basicValues = {
+  temp: 0.0, tint: 0.0,
+  exposure: 0.0, contrast: 0.0,
+  highlights: 0.0, shadows: 0.0, whites: 0.0, blacks: 0.0,
+  curveShadow: 0.0, curveMid: 0.5, curveHighlight: 1.0
+};
+
+const calibrationValues = {
+  shadowHue:0, shadowTint:1,
+  redHue:0, redSat:1,
+  greenHue:0, greenSat:1,
+  blueHue:0, blueSat:1
+};
+
+/* HSL groups (dynamic) */
+const colorNames = ["red","orange","yellow","green","aqua","blue","purple","magenta"];
+const bandNames = ["Red","Orange","Yellow","Green","Aqua","Blue","Purple","Magenta"];
+const sliders = [];
+(function createHSLGroups(){
+  const container = document.getElementById('hslContainer');
+  for(let i=0;i<8;i++){
+    const g = document.createElement('div');
+    g.className = 'group';
+    g.id = `hsl_${bandNames[i]}`;
+    g.style.display = 'none';
+    g.innerHTML = `<b>${bandNames[i]}</b>
+      <div class="row"><label>Hue</label><input id="hue_${i}" type="range" min="-180" max="180" step="1" value="0"><div class="value" id="hueVal_${i}">0</div></div>
+      <div class="row"><label>Sat</label><input id="sat_${i}" type="range" min="0" max="2" step="0.01" value="1"><div class="value" id="satVal_${i}">1.00</div></div>
+      <div class="row"><label>Light</label><input id="lig_${i}" type="range" min="0" max="2" step="0.01" value="1"><div class="value" id="ligVal_${i}">1.00</div></div>`;
+    container.appendChild(g);
+    const hue = document.getElementById(`hue_${i}`);
+    const sat = document.getElementById(`sat_${i}`);
+    const lig = document.getElementById(`lig_${i}`);
+    sliders.push({hue,sat,lig});
+    hue.addEventListener('input', ()=>{ document.getElementById(`hueVal_${i}`).textContent = hue.value; draw();});
+    sat.addEventListener('input', ()=>{ document.getElementById(`satVal_${i}`).textContent = Number(sat.value).toFixed(2); draw();});
+    lig.addEventListener('input', ()=>{ document.getElementById(`ligVal_${i}`).textContent = Number(lig.value).toFixed(2); draw();});
+  }
+})();
+showHSL('Red');
+
+function showHSL(color){
+  if(!color) return;
+  for(let b of bandNames){
+    const el = document.getElementById(`hsl_${b}`);
+    if(el) el.style.display = (b===color) ? 'block' : 'none';
+  }
+}
+
+/* ---------- draw() sets uniforms and renders ---------- */
+function draw(){
+  if(!tex) return;
+  gl.clearColor(0,0,0,1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.useProgram(prog);
+
+  // set texture unit 0
+  gl.uniform1i(gl.getUniformLocation(prog, "u_tex"), 0);
+
+  // basic
+  gl.uniform1f(basicUniforms.temp, basicValues.temp);
+  gl.uniform1f(basicUniforms.tint, basicValues.tint);
+  gl.uniform1f(basicUniforms.exposure, basicValues.exposure);
+  gl.uniform1f(basicUniforms.contrast, basicValues.contrast);
+  gl.uniform1f(basicUniforms.highlights, basicValues.highlights);
+  gl.uniform1f(basicUniforms.shadows, basicValues.shadows);
+  gl.uniform1f(basicUniforms.whites, basicValues.whites);
+  gl.uniform1f(basicUniforms.blacks, basicValues.blacks);
+  gl.uniform1f(basicUniforms.curveShadow, basicValues.curveShadow);
+  gl.uniform1f(basicUniforms.curveMid, basicValues.curveMid);
+  gl.uniform1f(basicUniforms.curveHighlight, basicValues.curveHighlight);
+
+  // HSL bands
+  for(let i=0;i<8;i++){
+    const h = Number(sliders[i].hue.value);
+    const s = Number(sliders[i].sat.value);
+    const l = Number(sliders[i].lig.value);
+    gl.uniform1f(uniforms[`hue${i}`], h);
+    gl.uniform1f(uniforms[`sat${i}`], s);
+    gl.uniform1f(uniforms[`lig${i}`], l);
+  }
+
+  // calibration
+  gl.uniform1f(calUniforms.shadowHue, calibrationValues.shadowHue);
+  gl.uniform1f(calUniforms.shadowTint, calibrationValues.shadowTint);
+  gl.uniform1f(calUniforms.redHue, calibrationValues.redHue);
+  gl.uniform1f(calUniforms.redSat, calibrationValues.redSat);
+  gl.uniform1f(calUniforms.greenHue, calibrationValues.greenHue);
+  gl.uniform1f(calUniforms.greenSat, calibrationValues.greenSat);
+  gl.uniform1f(calUniforms.blueHue, calibrationValues.blueHue);
+  gl.uniform1f(calUniforms.blueSat, calibrationValues.blueSat);
+
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+/* ---------- file input ---------- */
+const fileInput = document.getElementById('fileInput');
+const statusEl = document.getElementById('status');
+fileInput.addEventListener('change', async () => {
+  const f = fileInput.files && fileInput.files[0];
+  if(!f) return;
+  statusEl.textContent = 'Loading...';
+  const bmp = await createImageBitmap(f, { premultiplyAlpha: 'default' });
+  setTextureFromImageBitmap(bmp);
+  statusEl.textContent = f.name;
+});
+
+/* ---------- helpers to wire UI sliders to JS state ---------- */
+function wireBasic(id, field, fmt = v => v.toFixed(2), transform = v => v){
+  const el = document.getElementById(id);
+  const valEl = document.getElementById(id + 'Val');
+  if(!el) { console.warn('Missing slider', id); return; }
+  if(valEl) valEl.textContent = fmt(basicValues[field]);
+  el.addEventListener('input', ()=>{
+    const raw = Number(el.value);
+    basicValues[field] = transform(raw);
+    if(valEl) valEl.textContent = fmt(raw);
+    draw();
+  });
+}
+
+/* map slider ranges => shader domain */
+wireBasic('temp', 'temp', v => `${v}`, v => v/100.0);
+wireBasic('tint', 'tint', v => `${v}`, v => v/100.0);
+wireBasic('exposure', 'exposure', v => Number(v).toFixed(2), v => v);
+wireBasic('contrast', 'contrast', v => Number(v).toFixed(2), v => v);
+wireBasic('highlights', 'highlights', v => Number(v).toFixed(2), v => v);
+wireBasic('shadows', 'shadows', v => Number(v).toFixed(2), v => v);
+wireBasic('whites', 'whites', v => Number(v).toFixed(2), v => v);
+wireBasic('blacks', 'blacks', v => Number(v).toFixed(2), v => v);
+
+wireBasic('curveShadow', 'curveShadow', v => Number(v).toFixed(2), v => v);
+wireBasic('curveMid', 'curveMid', v => Number(v).toFixed(2), v => v);
+wireBasic('curveHighlight', 'curveHighlight', v => Number(v).toFixed(2), v => v);
+
+/* ---------- calibration wiring ---------- */
+function wireCal(id, field, fmt = v => v.toFixed(2), transform = v => v){
+  const el = document.getElementById(id);
+  const valEl = document.getElementById(id + 'Val');
+  if(!el) { console.warn('Missing calib slider', id); return; }
+  if(valEl) valEl.textContent = fmt(calibrationValues[field]);
+  el.addEventListener('input', ()=>{
+    const raw = Number(el.value);
+    calibrationValues[field] = transform(raw);
+    if(valEl) valEl.textContent = fmt(raw);
+    draw();
+  });
+}
+
+wireCal('shadowHue','shadowHue', v => `${v}`, v => v);
+wireCal('shadowTint','shadowTint', v => Number(v).toFixed(2), v => v);
+
+wireCal('redHue','redHue', v => `${v}`, v => v);
+wireCal('redSat','redSat', v => Number(v).toFixed(2), v => v);
+wireCal('greenHue','greenHue', v => `${v}`, v => v);
+wireCal('greenSat','greenSat', v => Number(v).toFixed(2), v => v);
+wireCal('blueHue','blueHue', v => `${v}`, v => v);
+wireCal('blueSat','blueSat', v => Number(v).toFixed(2), v => v);
+
+/* ---------- small sanity logs (helpful during dev) ---------- */
+console.log('Uniform locations basicUniforms:', basicUniforms);
+console.log('HSL uniform map sample:', uniforms.hue0, uniforms.sat0, uniforms.lig0);
+console.log('Calibration uniform map sample:', calUniforms.shadowHue, calUniforms.redHue);
+
+/* draw will run automatically when image is set and sliders move */
+</script>
 </body>
 </html>

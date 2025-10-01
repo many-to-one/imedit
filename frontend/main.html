@@ -86,28 +86,79 @@
       <div class="colorPanel">
 
         <div class="panel">
-          <h3>Basic Adjustments</h3>
-          <label>Temperature <input type="range" id="temp" min="-100" max="100" value="0">
-            <span id="temperatureValue">0</span>
+          <!-- <h3>Basic Adjustments</h3>
+          <label>Temperature <input type="range" id="temp" min="-100" max="100" step="1" value="0">
+            <span id="tempValue">0</span>
           </label>
-          <label>Tint <input type="range" id="tint" min="-100" max="100" value="0">
+          <label>Tint <input type="range" id="tint" min="-100" max="100" step="1" value="0">
             <span id="tintValue">0</span>
           </label>
-          <label>Exposure <input type="range" id="exposure" min="-2" max="2" step="0.1" value="0">
+          <label>Exposure <input type="range" id="exposure" min="-100" max="100" step="1" value="0">
             <span id="exposureValue">0</span>
           </label>
-          <label>Contrast <input type="range" id="contrast" min="-100" max="100" value="0">
+          <label>Contrast <input type="range" id="contrast" min="-100" max="100" step="1" value="0">
             <span id="contrastValue">0</span>
           </label>
-          <label>Highlights <input type="range" id="highlights" min="-100" max="100" value="0">
+          <label>Highlights <input type="range" id="highlights" min="-100" max="100" step="1" value="0">
             <span id="highlightsValue">0</span>
           </label>
-          <label>Shadows <input type="range" id="shadows" min="-100" max="100" value="0">
+          <label>Shadows <input type="range" id="shadows" min="-100" max="100" step="1" value="0">
             <span id="shadowsValue">0</span>
           </label>
+          <label>Blacks <input type="range" id="blacks" min="-100" max="100" step="1" value="0">
+            <span id="blacksValue">0</span>
+          </label>
+          <label>Whites <input type="range" id="whites" min="-100" max="100" step="1" value="0">
+            <span id="whitesValue">0</span>
+          </label> -->
+
+          <div class="panel">
+            <h3>Basic Adjustments</h3>
+
+            <label>Temperature
+              <input type="range" id="temp" min="-100" max="100" step="1" value="0">
+              <span id="tempVal">0</span>
+            </label>
+
+            <label>Tint
+              <input type="range" id="tint" min="-100" max="100" step="1" value="0">
+              <span id="tintVal">0</span>
+            </label>
+
+            <label>Exposure
+              <input type="range" id="exposure" min="-2" max="2" step="0.01" value="0">
+              <span id="exposureVal">0.00</span>
+            </label>
+
+            <label>Contrast
+              <input type="range" id="contrast" min="-1" max="1" step="0.01" value="0">
+              <span id="contrastVal">0.00</span>
+            </label>
+
+            <label>Highlights
+              <input type="range" id="highlights" min="-1" max="1" step="0.01" value="0">
+              <span id="highlightsVal">0.00</span>
+            </label>
+
+            <label>Shadows
+              <input type="range" id="shadows" min="-1" max="1" step="0.01" value="0">
+              <span id="shadowsVal">0.00</span>
+            </label>
+
+            <label>Whites
+              <input type="range" id="whites" min="-1" max="1" step="0.01" value="0">
+              <span id="whitesVal">0.00</span>
+            </label>
+
+            <label>Blacks
+              <input type="range" id="blacks" min="-1" max="1" step="0.01" value="0">
+              <span id="blacksVal">0.00</span>
+            </label>
+          </div>
+
         </div>
 
-        <div class="curve-box">
+        <!-- <div class="curve-box">
           <h3>Curve</h3>
           <svg id="curve">
             <path id="curvePath" d="M 0 200 Q 100 100 200 0" />
@@ -115,7 +166,7 @@
             <circle cx="100" cy="100" r="6" class="draggable" />
             <circle cx="200" cy="0" r="6" />
           </svg>
-        </div>
+        </div> -->
 
         <!-- Curve panel (simple 3-point parametric controls) -->
       <!-- <div class="card">
@@ -242,11 +293,13 @@ uniform float u_highlights; // -1..+1
 uniform float u_shadows;    // -1..+1
 uniform float u_whites;     // -1..+1
 uniform float u_blacks;     // -1..+1
+uniform float u_temp; 
+uniform float u_tint;
 
-/* Tone curve (3-point) */
-uniform float u_curveShadow;
-uniform float u_curveMid;
-uniform float u_curveHighlight;
+// /* Tone curve (3-point) */
+// uniform float u_curveShadow;
+// uniform float u_curveMid;
+// uniform float u_curveHighlight;
 
 
 // 24 HSL band uniforms (8×3)
@@ -325,18 +378,18 @@ float hueDist(float a, float b){
   return min(d, 1.0 - d);
 }
 
-/* simple 3-point curve interpolation */
-float applyCurve(float lum) {
-  // control points given as uniforms: u_curveShadow (x=0), u_curveMid (x=0.5), u_curveHighlight (x=1)
-  // we'll do a smooth interpolation: shadows->mid for lum in [0,0.5], mid->high for lum in (0.5,1]
-  if (lum < 0.5) {
-    float t = lum / 0.5;
-    return mix(u_curveShadow, u_curveMid, t);
-  } else {
-    float t = (lum - 0.5) / 0.5;
-    return mix(u_curveMid, u_curveHighlight, t);
-  }
-}
+// /* simple 3-point curve interpolation */
+// float applyCurve(float lum) {
+//   // control points given as uniforms: u_curveShadow (x=0), u_curveMid (x=0.5), u_curveHighlight (x=1)
+//   // we'll do a smooth interpolation: shadows->mid for lum in [0,0.5], mid->high for lum in (0.5,1]
+//   if (lum < 0.5) {
+//     float t = lum / 0.5;
+//     return mix(u_curveShadow, u_curveMid, t);
+//   } else {
+//     float t = (lum - 0.5) / 0.5;
+//     return mix(u_curveMid, u_curveHighlight, t);
+//   }
+// }
 
 void main(){
   vec4 tex = texture2D(u_tex, v_uv);
@@ -344,6 +397,15 @@ void main(){
   vec3 hsl = rgb2hsl(rgb);
 
   // --- Basic global adjustments ---
+
+  // --- simple white balance (approx)
+  rgb.r *= (1.0 + u_temp * 0.15);
+  rgb.b *= (1.0 - u_temp * 0.15);
+  rgb.g *= (1.0 + u_tint * 0.06);
+
+  // clamp to avoid extreme values
+  // rgb = clamp(rgb, 0.0, 1.0);
+
   rgb *= pow(2.0, u_exposure); // exposure in stops
 
   // Contrast (pivot around 0.5)
@@ -364,13 +426,13 @@ void main(){
   // clamp
   rgb = clamp(rgb, 0.0, 1.0);
 
-  // --- Tone Curve (3-point parametric) ---
-  float curveY = mix(
-    mix(u_curveShadow, u_curveMid, lum*2.0),   // shadows-mid
-    mix(u_curveMid, u_curveHighlight, (lum-0.5)*2.0), // mid-high
-    step(0.5, lum)
-  );
-  rgb = mix(rgb, vec3(curveY), 0.25); // blend strength
+  // // --- Tone Curve (3-point parametric) ---
+  // float curveY = mix(
+  //   mix(u_curveShadow, u_curveMid, lum*2.0),   // shadows-mid
+  //   mix(u_curveMid, u_curveHighlight, (lum-0.5)*2.0), // mid-high
+  //   step(0.5, lum)
+  // );
+  // rgb = mix(rgb, vec3(curveY), 0.25); // blend strength
 
   // --- HSL per-band
   int band = int(floor(hsl.x * 8.0));
@@ -462,10 +524,13 @@ const basicUniforms = {
   shadows: gl.getUniformLocation(prog, "u_shadows"),
   whites: gl.getUniformLocation(prog, "u_whites"),
   blacks: gl.getUniformLocation(prog, "u_blacks"),
-  curveShadow: gl.getUniformLocation(prog, "u_curveShadow"),
-  curveMid: gl.getUniformLocation(prog, "u_curveMid"),
-  curveHighlight: gl.getUniformLocation(prog, "u_curveHighlight")
+  // curveShadow: gl.getUniformLocation(prog, "u_curveShadow"),
+  // curveMid: gl.getUniformLocation(prog, "u_curveMid"),
+  // curveHighlight: gl.getUniformLocation(prog, "u_curveHighlight"),
+  temp: gl.getUniformLocation(prog, "u_temp"),   // <- new
+  tint: gl.getUniformLocation(prog, "u_tint")    // <- new
 };
+
 
 const uniforms = {};
 function getUniforms(){
@@ -515,13 +580,12 @@ function setTextureFromImageBitmap(bmp) {
 
 
 /* ---------- State holders (JS) ---------- */
-const basicValues = {
-  exposure: 0.0, contrast: 0.0,
-  highlights: 0.0, shadows: 0.0, whites: 0.0, blacks: 0.0,
-  curveShadow: 0.0, curveMid: 0.5, curveHighlight: 1.0
-};
-
 function draw(){
+
+  if(!tex) return;
+  console.log('draw', basicValues);
+  console.log('uniform location exposure:', basicUniforms.exposure);
+  
   gl.clear(gl.COLOR_BUFFER_BIT);
   gl.uniform1i(gl.getUniformLocation(prog,"u_tex"),0);
 
@@ -531,10 +595,12 @@ function draw(){
   gl.uniform1f(basicUniforms.shadows, basicValues.shadows);
   gl.uniform1f(basicUniforms.whites, basicValues.whites);
   gl.uniform1f(basicUniforms.blacks, basicValues.blacks);
+  gl.uniform1f(basicUniforms.temp, basicValues.temp);
+gl.uniform1f(basicUniforms.tint, basicValues.tint);
 
-  gl.uniform1f(basicUniforms.curveShadow, basicValues.curveShadow);
-  gl.uniform1f(basicUniforms.curveMid, basicValues.curveMid);
-  gl.uniform1f(basicUniforms.curveHighlight, basicValues.curveHighlight);
+  // gl.uniform1f(basicUniforms.curveShadow, basicValues.curveShadow);
+  // gl.uniform1f(basicUniforms.curveMid, basicValues.curveMid);
+  // gl.uniform1f(basicUniforms.curveHighlight, basicValues.curveHighlight);
 
   for(let i=0;i<8;i++){
     gl.uniform1f(uniforms[`hue${i}`], Number(sliders[i].hue.value));
@@ -557,33 +623,97 @@ function draw(){
 
 
 
-/* ---------- Basic controls wiring (classic HTML) ---------- */
+// /* ---------- Basic controls wiring (classic HTML) ---------- */
+
+// const basicValues = {
+//   exposure: 0.0, contrast: 0.0,
+//   highlights: 0.0, shadows: 0.0, whites: 0.0, blacks: 0.0,
+//   curveShadow: 0.0, curveMid: 0.5, curveHighlight: 1.0
+// };
+
+// ["temp","tint","exposure","contrast","highlights","shadows"].forEach(id => {
+//   wireBasic(id, id, v => `${v}`);
+// });
+
+// function wireBasic(id, field, fmt = v => v.toFixed(2), transform = v => v) {
+//   const el = document.getElementById(id);
+//   const valEl = document.getElementById(id + "Value"); // 🔑 updated
+
+//   if(!el || !valEl) return;
+
+//   // init value
+//   el.value = basicValues[field];
+//   valEl.textContent = fmt(basicValues[field]);
+
+//   el.addEventListener('input', () => {
+//     const raw = Number(el.value);
+//     basicValues[field] = transform(raw);
+//     valEl.textContent = fmt(raw);
+//     draw();
+//   });
+// }
+
+
+const basicValues = {
+  temp: 0.0,    // -1..1 in shader (we will send slider /100)
+  tint: 0.0,    // -1..1 in shader (slider /100)
+  exposure: 0.0,
+  contrast: 0.0,
+  highlights: 0.0,
+  shadows: 0.0,
+  whites: 0.0,
+  blacks: 0.0,
+  // curveShadow: 0.0,
+  // curveMid: 0.5,
+  // curveHighlight: 1.0
+};
+
 function wireBasic(id, field, fmt = v => v.toFixed(2), transform = v => v) {
   const el = document.getElementById(id);
-  const valEl = document.getElementById(id + 'Value');
-  if(!el) return;
-  // init value
-  el.value = basicValues[field];
-  valEl.textContent = fmt(basicValues[field]);
+  const valEl = document.getElementById(id + 'Val'); // <--- expects e.g. exposureVal
+  if(!el) { console.warn("Missing slider:", id); return; }
+  if(!valEl) { console.warn("Missing display span:", id + 'Val'); }
+
+  // initialize control display
+  el.value = (typeof basicValues[field] === 'number') ? basicValues[field] : 0;
+  if (valEl) valEl.textContent = fmt(basicValues[field]);
+
   el.addEventListener('input', () => {
     const raw = Number(el.value);
+    // transform maps slider domain to shader domain (for example /100)
     basicValues[field] = transform(raw);
-    valEl.textContent = fmt(raw);
+    if (valEl) valEl.textContent = fmt(raw);
     draw();
   });
 }
 
-/* map slider ids -> fields in basicValues */
-wireBasic('exposure', 'exposure', v => Number(v).toFixed(2), v => v); // stops directly
-wireBasic('contrast', 'contrast', v => Number(v).toFixed(2), v => v);
-wireBasic('highlights', 'highlights', v => Number(v).toFixed(2), v => v);
-wireBasic('shadows', 'shadows', v => Number(v).toFixed(2), v => v);
-wireBasic('whites', 'whites', v => Number(v).toFixed(2), v => v);
-wireBasic('blacks', 'blacks', v => Number(v).toFixed(2), v => v);
+wireBasic("exposure", "exposure", v => v, v => v/50.0);   // -2..+2 stops
+wireBasic("contrast", "contrast", v => v, v => v/100.0);  // -1..+1
+wireBasic("temp", "temp", v => v, v => v/100.0);          // -1..+1
+wireBasic("tint", "tint", v => v, v => v/100.0);          // -1..+1
+wireBasic("highlights", "highlights", v => v, v => v/100.0);
+wireBasic("shadows", "shadows", v => v, v => v/100.0);
+wireBasic("whites", "whites", v => v, v => v/100.0);
+wireBasic("blacks", "blacks", v => v, v => v/100.0);
 
-wireBasic('curveShadow','curveShadow', v => Number(v).toFixed(2), v => v);
-wireBasic('curveMid','curveMid', v => Number(v).toFixed(2), v => v);
-wireBasic('curveHighlight','curveHighlight', v => Number(v).toFixed(2), v => v);
+
+// wireBasic('curveShadow','curveShadow', v => Number(v).toFixed(2), v => v);
+// wireBasic('curveMid'   ,'curveMid'   , v => Number(v).toFixed(2), v => v);
+// wireBasic('curveHighlight','curveHighlight', v => Number(v).toFixed(2), v => v);
+
+
+
+// /* map slider ids -> fields in basicValues */ 
+// wireBasic('exposure', 'exposure', v => Number(v).toFixed(2), v => v); // stops directly 
+// wireBasic('contrast', 'contrast', v => Number(v).toFixed(2), v => v);
+// wireBasic('highlights', 'highlights', v => Number(v).toFixed(2), v => v);
+// wireBasic('shadows', 'shadows', v => Number(v).toFixed(2), v => v);
+// wireBasic('whites', 'whites', v => Number(v).toFixed(2), v => v);
+// wireBasic('blacks', 'blacks', v => Number(v).toFixed(2), v => v);
+
+// wireBasic('curveShadow','curveShadow', v => Number(v).toFixed(2), v => v);
+// wireBasic('curveMid','curveMid', v => Number(v).toFixed(2), v => v);
+// wireBasic('curveHighlight','curveHighlight', v => Number(v).toFixed(2), v => v);
 
 
 // ---------- HSL UI ----------
@@ -674,6 +804,7 @@ function openCalib () {
 
     el.addEventListener("input", () => {
       const val = Number(el.value);
+      console.log('addEventListener--------- calib', val)
       calibrationValues[field] = val;
       if(label) label.textContent = fmt(val);
       if(typeof draw === "function") draw();
@@ -698,6 +829,36 @@ function openCalib () {
 
 
 // ------------------------------------ //
+
+
+// /* ---------- Basic controls wiring (classic HTML) ---------- */
+// function wireBasic(id, field, fmt = v => v.toFixed(2), transform = v => v) {
+//   const el = document.getElementById(id);
+//   // const valEl = document.getElementById(id + 'Value');
+//   const valEl = document.getElementById(id);
+//   if(!el) return;
+//   // init value
+//   el.value = basicValues[field];
+//   valEl.textContent = fmt(basicValues[field]);
+//   el.addEventListener('input', () => {
+//     const raw = Number(el.value);
+//     basicValues[field] = transform(raw);
+//     valEl.textContent = fmt(raw);
+//     draw();
+//   });
+// }
+
+// /* map slider ids -> fields in basicValues */
+// wireBasic('exposure', 'exposure', v => Number(v).toFixed(2), v => v); // stops directly
+// wireBasic('contrast', 'contrast', v => Number(v).toFixed(2), v => v);
+// wireBasic('highlights', 'highlights', v => Number(v).toFixed(2), v => v);
+// wireBasic('shadows', 'shadows', v => Number(v).toFixed(2), v => v);
+// wireBasic('whites', 'whites', v => Number(v).toFixed(2), v => v);
+// wireBasic('blacks', 'blacks', v => Number(v).toFixed(2), v => v);
+
+// wireBasic('curveShadow','curveShadow', v => Number(v).toFixed(2), v => v);
+// wireBasic('curveMid','curveMid', v => Number(v).toFixed(2), v => v);
+// wireBasic('curveHighlight','curveHighlight', v => Number(v).toFixed(2), v => v);
 
 </script>
 </body>
