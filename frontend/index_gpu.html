@@ -210,7 +210,7 @@ zoomSlider.addEventListener('input', () => {
   zoomVal.textContent = `${zoomSlider.value}%`;
 });
 
-/* ---------- Zoom logic with mouse scroll ---------- */
+/* ---------- Zoom logic with mouse scroll and cursor moving ---------- */
 
 canvas.addEventListener('wheel', (event) => {
   if (!event.ctrlKey) return; // Ignore scroll unless Ctrl is held
@@ -230,6 +230,47 @@ canvas.addEventListener('wheel', (event) => {
   canvas.style.transform = `scale(${scale}) rotateX(180deg)`;
   zoomVal.textContent = `${currentZoom}%`;
 });
+
+let isDragging = false;
+let startX = 0;
+let startY = 0;
+let offsetX = 0;
+let offsetY = 0;
+
+canvas.addEventListener('mousedown', (e) => {
+  isDragging = true;
+  startX = e.clientX;
+  startY = e.clientY;
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+
+  const dx = e.clientX - startX;
+  const dy = e.clientY - startY;
+
+  offsetX += dx;
+  offsetY += dy;
+
+  startX = e.clientX;
+  startY = e.clientY;
+
+  applyTransform();
+});
+
+canvas.addEventListener('mouseup', () => {
+  isDragging = false;
+});
+
+canvas.addEventListener('mouseleave', () => {
+  isDragging = false;
+});
+
+function applyTransform() {
+  const scale = Number(zoomSlider.value) / 100;
+  canvas.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale}) rotateX(180deg)`;
+}
+
 
 
 /* Vertex shader */
