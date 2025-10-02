@@ -12,9 +12,9 @@
   main{flex:1 1 auto;min-width:300px}
   aside{width:360px;max-height:calc(100vh - 24px);overflow:auto}
   .card{background:var(--card);padding:10px;border-radius:8px;margin-bottom:12px}
-  .card-img{margin-left: 30%; width: 1000px;}
+  .card-img{margin-left: 30%; width: 1000px; height: 1000px; background: #111;}
   h2{margin:0 0 12px 0}
-  canvas{width:100%;height:auto;border:1px solid #444;background:#111;display:block; transform: rotateX(180deg);}
+  canvas{width:100%;height:auto;display:block; transform: rotateX(180deg);}
   /* canvas{width:100%;height:auto;display:block; transform: rotateX(180deg);} */
   .row{display:flex;gap:8px;align-items:center;margin:6px 0}
   .row label{flex:1 1 auto;color:var(--muted);font-size:13px}
@@ -35,16 +35,7 @@
       <div id="status" style="font-size:12px;color:var(--muted);margin-top:6px">No image loaded</div>
     </div>
 
-    <!-- <div class="card-img">
-      <canvas id="glcanvas" width="800" height="600"></canvas>
-    </div> -->
-
-    <div class="card" style="margin-bottom: 10px;">
-      <label>Zoom: <span id="zoomVal">100%</span></label>
-      <input id="zoomSlider" type="range" min="10" max="300" value="100">
-    </div>
-
-    <div class="card-img" style="width:800px; height:600px; overflow:hidden; border:1px solid #ccc;">
+    <div class="card-img" style= "overflow:hidden; border:1px solid #434343;">
       <canvas id="glcanvas" width="800" height="600" style="display:block;"></canvas>
     </div>
 
@@ -207,15 +198,39 @@ const canvas = document.getElementById('glcanvas');
 const gl = canvas.getContext('webgl');
 if(!gl){ alert('WebGL not supported'); throw new Error('WebGL not supported'); }
 
+/* ---------- Zoom logic with slider ---------- */
+
 const zoomSlider = document.getElementById('zoomSlider'); 
 const zoomVal = document.getElementById('zoomVal');
 
 zoomSlider.addEventListener('input', () => {
   const scale = Number(zoomSlider.value) / 100;
-  canvas.style.transform = `scale(${scale})`;
-  canvas.style.transformOrigin = 'top left';
+  canvas.style.transform = `scale(${scale}) rotateX(180deg)`;
+  // canvas.style.transformOrigin = 'top left';
   zoomVal.textContent = `${zoomSlider.value}%`;
 });
+
+/* ---------- Zoom logic with mouse scroll ---------- */
+
+canvas.addEventListener('wheel', (event) => {
+  if (!event.ctrlKey) return; // Ignore scroll unless Ctrl is held
+
+  event.preventDefault(); // Prevent page zoom or scroll
+
+  const delta = Math.sign(event.deltaY); // -1 for zoom in, 1 for zoom out
+  let currentZoom = Number(zoomSlider.value);
+
+  const step = 10;
+  currentZoom -= delta * step;
+
+  currentZoom = Math.max(zoomSlider.min, Math.min(zoomSlider.max, currentZoom));
+
+  zoomSlider.value = currentZoom;
+  const scale = currentZoom / 100;
+  canvas.style.transform = `scale(${scale}) rotateX(180deg)`;
+  zoomVal.textContent = `${currentZoom}%`;
+});
+
 
 /* Vertex shader */
 const vsSrc = `
