@@ -31,9 +31,12 @@
     <h2>Lightroom-like editor (WebGL)</h2>
 
     <div class="card">
-      <input id="fileInput" type="file" accept="image/*">
+      <!-- <input id="fileInput" type="file" accept="image/*"> -->
+       <input id="fileInput" type="file"
+       accept=".jpg,.jpeg,.png,.webp,.gif,.bmp,.avif,.cr2,.nef,.arw,.dng,.orf,.raf,.rw2">
       <div id="status" style="font-size:12px;color:var(--muted);margin-top:6px">No image loaded</div>
     </div>
+
 
     <div class="card-img" style= "overflow:hidden; border:1px solid #434343;">
       <canvas id="glcanvas" width="800" height="600" style="display:block;"></canvas>
@@ -188,8 +191,41 @@
         </div>
       </div>
 
+
+      <!-- Save -->
+      <div class="card">
+        <div class="card">
+          <input id="filenameInput" type="text" placeholder="Enter filename" />
+          <select id="fileTypeSelect">
+            <option value="png">PNG (.png)</option>
+            <option value="jpeg">JPEG (.jpeg)</option>
+            <option value="webp">WebP (.webp)</option>
+          </select>
+          <button id="saveBtn">Save Image</button>
+          <div id="saveStatus" style="font-size:12px;color:var(--muted);margin-top:6px">
+            Ready
+          </div>
+        </div>
+      </div>
+
+
     </div>
   </aside>
+
+
+
+<!-- for .CR2 -->
+<script src="./js/rawwasm.js"></script>  
+
+
+
+
+
+
+
+
+
+
 
 <script>
 
@@ -236,6 +272,7 @@ let startX = 0;
 let startY = 0;
 let offsetX = 0;
 let offsetY = 0;
+// const { offsetX, offsetY } = window; // use your stored offsets
 
 canvas.addEventListener('mousedown', (e) => {
   isDragging = true;
@@ -270,6 +307,87 @@ function applyTransform() {
   const scale = Number(zoomSlider.value) / 100;
   canvas.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale}) rotateX(180deg)`;
 }
+
+
+// Save logic
+const saveStatus = document.getElementById('saveStatus');
+const fileTypeSelect = document.getElementById('fileTypeSelect');
+
+async function saveWebGLCanvas(filenameBase = 'canvas-image') {
+  const width = canvas.width;
+  const height = canvas.height;
+  const gl = canvas.getContext('webgl');
+
+  saveStatus.textContent = 'Preparing download…';
+
+  // Read pixels
+  const pixels = new Uint8Array(width * height * 4);
+  gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+
+  // Offscreen canvas
+  const off = document.createElement('canvas');
+  off.width = width;
+  off.height = height;
+  const ctx = off.getContext('2d');
+  const imageData = ctx.createImageData(width, height);
+  imageData.data.set(pixels);
+
+  // Flip vertically
+  ctx.save();
+  ctx.translate(0, height);
+  ctx.scale(1, -1);
+  ctx.putImageData(imageData, 0, 0);
+  ctx.restore();
+
+  // Determine type and extension
+  const ext = fileTypeSelect.value; // "png", "jpeg", "webp"
+  const mime = `image/${ext}`;
+  const filename = `${filenameBase}.${ext}`;
+
+  try {
+    const blob = await new Promise(res => off.toBlob(res, mime, 0.92));
+
+    if (window.showSaveFilePicker) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{ description: `${ext.toUpperCase()} Image`, accept: { [mime]: [`.${ext}`] } }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        saveStatus.textContent = 'File saved successfully ✔';
+        return;
+      } catch (err) {
+        console.warn('Picker failed, falling back:', err);
+      }
+    }
+
+    // Fallback: auto-download
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    saveStatus.textContent = 'Download started ⬇';
+  } catch (err) {
+    console.error('Save failed:', err);
+    saveStatus.textContent = 'Save failed ✖';
+  }
+}
+
+saveBtn.addEventListener('click', () => {
+  draw(); // ensure GPU buffer is up to date
+  const baseName = filenameInput.value.trim() || 'canvas-image';
+  saveWebGLCanvas(baseName);
+});
+
+
+
 
 
 
@@ -659,16 +777,131 @@ function draw(){
 }
 
 /* ---------- file input ---------- */
-const fileInput = document.getElementById('fileInput');
-const statusEl = document.getElementById('status');
-fileInput.addEventListener('change', async () => {
-  const f = fileInput.files && fileInput.files[0];
-  if(!f) return;
-  statusEl.textContent = 'Loading...';
-  const bmp = await createImageBitmap(f, { premultiplyAlpha: 'default' });
-  setTextureFromImageBitmap(bmp);
-  statusEl.textContent = f.name;
-});
+// const fileInput = document.getElementById('fileInput');
+// const statusEl = document.getElementById('status');
+// fileInput.addEventListener('change', async () => {
+//   const f = fileInput.files && fileInput.files[0];
+//   if(!f) return;
+//   statusEl.textContent = 'Loading...';
+//   const bmp = await createImageBitmap(f, { premultiplyAlpha: 'default' });
+//   setTextureFromImageBitmap(bmp);
+//   statusEl.textContent = f.name;
+// });
+
+
+// 
+
+
+
+
+// RAW decoder holder
+  let rawModule = null;
+
+  async function ensureDecoder() {
+    if (rawModule) return rawModule;
+    if (typeof RawWasm !== 'function') {
+      throw new Error('RAW decoder library not loaded (rawwasm.js/rawwasm.wasm missing or wrong path).');
+    }
+    rawModule = await RawWasm();
+    return rawModule;
+  }
+
+  async function decodeRawWithModule(arrayBuffer) {
+    await ensureDecoder();
+    const raw = new rawModule.RawImage(new Uint8Array(arrayBuffer));
+    raw.decode();
+    const width = raw.width;
+    const height = raw.height;
+    const pixels = raw.getData(); // expected RGBA
+    raw.destroy();
+    return { width, height, pixels };
+  }
+
+  // debug stub to verify pipeline without WASM
+  function decodeRawStub() {
+    const width = 512, height = 340;
+    const pixels = new Uint8Array(width * height * 4);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4;
+        pixels[i] = x % 256;
+        pixels[i + 1] = y % 256;
+        pixels[i + 2] = (x + y) % 256;
+        pixels[i + 3] = 255;
+      }
+    }
+    return { width, height, pixels };
+  }
+
+  const statusEl = document.getElementById('status');
+
+  async function imageBitmapFromRGBA(decoded) {
+    const off = document.createElement('canvas');
+    off.width = decoded.width;
+    off.height = decoded.height;
+    const ctx = off.getContext('2d');
+    const imgData = ctx.createImageData(decoded.width, decoded.height);
+    imgData.data.set(decoded.pixels);
+    ctx.putImageData(imgData, 0, 0);
+    return await createImageBitmap(off);
+  }
+
+  fileInput.addEventListener('change', async () => {
+    const f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    const ext = (f.name.split('.').pop() || '').toLowerCase();
+    console.log('Picked file:', f.name, 'ext:', ext);
+    statusEl.textContent = 'Loading...';
+
+    try {
+      if (['jpg','jpeg','png','webp','gif','bmp','avif'].includes(ext)) {
+        statusEl.textContent = 'Decoding image...';
+        const bmp = await createImageBitmap(f, { premultiplyAlpha: 'default' });
+        setTextureFromImageBitmap(bmp);
+        statusEl.textContent = f.name;
+        return;
+      }
+
+      if (['cr2','nef','arw','raf','dng','orf','rw2'].includes(ext)) {
+        statusEl.textContent = 'Decoding RAW...';
+        const arrayBuffer = await f.arrayBuffer();
+
+        const useStub = false; // set true to test without the real wasm decoder
+        let decoded;
+        if (useStub) {
+          decoded = decodeRawStub();
+        } else {
+          try {
+            decoded = await decodeRawWithModule(arrayBuffer);
+          } catch (e) {
+            console.warn('Decoder init/parse failed:', e);
+            statusEl.textContent = 'RAW decoder not loaded or failed. Set useStub=true to test.';
+            return;
+          }
+        }
+
+        if (!decoded || !decoded.pixels || decoded.pixels.length !== decoded.width * decoded.height * 4) {
+          throw new Error('Decoder returned invalid pixel buffer');
+        }
+
+        statusEl.textContent = 'Uploading pixels to GPU...';
+        const bmp = await imageBitmapFromRGBA(decoded);
+        setTextureFromImageBitmap(bmp);
+        statusEl.textContent = f.name;
+        return;
+      }
+
+      statusEl.textContent = 'Unsupported format';
+    } catch (err) {
+      console.error('Upload/Decode error:', err);
+      statusEl.textContent = 'Failed to load file: ' + (err.message || '');
+    }
+  });
+
+
+
+
+
 
 /* ---------- helpers to wire UI sliders to JS state ---------- */
 function wireBasic(id, field, fmt = v => v.toFixed(2), transform = v => v){
