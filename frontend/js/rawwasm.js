@@ -2,8 +2,9 @@
 // Minimal WASM loader wrapper that exposes global RawWasm()
 // Ensure rawwasm.wasm is available at the WASM_URL path.
 
+
 (function (global) {
-  const WASM_URL = './rawwasm.wasm'; // adjust if you store wasm elsewhere
+  const WASM_URL = './js/rawwasm.wasm';
 
   async function RawWasm() {
     if (RawWasm._instance) return RawWasm._instance;

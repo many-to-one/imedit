@@ -12,7 +12,7 @@
   main{flex:1 1 auto;min-width:300px}
   aside{width:360px;max-height:calc(100vh - 24px);overflow:auto}
   .card{background:var(--card);padding:10px;border-radius:8px;margin-bottom:12px}
-  .card-img{margin-left: 30%; width: 1000px; height: 1000px; background: #111;}
+  .card-img{margin-left: 30%; width: 1000px; height: 1000px;}
   h2{margin:0 0 12px 0}
   canvas{width:100%;height:auto;display:block; transform: rotateX(180deg);}
   /* canvas{width:100%;height:auto;display:block; transform: rotateX(180deg);} */
@@ -31,16 +31,24 @@
     <h2>Lightroom-like editor (WebGL)</h2>
 
     <div class="card">
-      <!-- <input id="fileInput" type="file" accept="image/*"> -->
-       <input id="fileInput" type="file"
-       accept=".jpg,.jpeg,.png,.webp,.gif,.bmp,.avif,.cr2,.nef,.arw,.dng,.orf,.raf,.rw2">
+       <!-- <input id="fileInput" type="file"
+       accept=".jpg,.jpeg,.png,.webp,.gif,.bmp,.avif,.cr2,.nef,.arw,.dng,.orf,.raf,.rw2"> -->
+       <input 
+          id="fileInput" 
+          type="file" 
+          multiple accept=".jpg,.jpeg,.png,.webp,.gif,.bmp,.avif,.cr2,.nef,.arw,.dng,.orf,.raf,.rw2"
+        >
+
       <div id="status" style="font-size:12px;color:var(--muted);margin-top:6px">No image loaded</div>
     </div>
 
 
-    <div class="card-img" style= "overflow:hidden; border:1px solid #434343;">
+    <div class="card-img" style= "overflow:hidden;">
       <canvas id="glcanvas" width="800" height="600" style="display:block;"></canvas>
     </div>
+
+    <!-- Gallery strip -->
+    <div id="gallery" style="display:flex; overflow-x:auto; gap:8px; margin-top:12px;"></div>
 
   </main>
 
@@ -215,19 +223,26 @@
 
 
 <!-- for .CR2 -->
-<script src="./js/rawwasm.js"></script>  
-
-
-
-
-
-
-
+<!-- <script src="./js/rawwasm.js"></script>   -->
+<!-- <script type="module" src="https://cdn.jsdelivr.net/npm/libraw-wasm@0.1.4/dist/libraw.js"></script> -->
 
 
 
 
 <script>
+
+const galleryEl = document.getElementById('gallery');
+
+// Store image metadata
+const images = [];
+let currentImageIndex = null;
+let copiedSettings = null;
+
+// Simulated edit settings
+// function getEditSettings(image) {
+//   return image.settings || { exposure: 1.0, contrast: 1.0 };
+// }
+
 
 /* ---------- WebGL setup and shader (complete) ---------- */
 const canvas = document.getElementById('glcanvas');
@@ -776,130 +791,293 @@ function draw(){
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
-/* ---------- file input ---------- */
-// const fileInput = document.getElementById('fileInput');
-// const statusEl = document.getElementById('status');
+
+
+const fileInput = document.getElementById('fileInput');
+const statusEl = document.getElementById('status');
+
 // fileInput.addEventListener('change', async () => {
 //   const f = fileInput.files && fileInput.files[0];
-//   if(!f) return;
+//   if (!f) return;
+
+//   const ext = f.name.split('.').pop().toLowerCase();
 //   statusEl.textContent = 'Loading...';
-//   const bmp = await createImageBitmap(f, { premultiplyAlpha: 'default' });
-//   setTextureFromImageBitmap(bmp);
-//   statusEl.textContent = f.name;
+
+//   try {
+//     let bmp;
+
+//     if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) {
+//       // ✅ Native formats — decode locally
+//       bmp = await createImageBitmap(f, { premultiplyAlpha: 'default' });
+//     } else if (['cr2', 'nef', 'arw', 'dng', 'raf', 'rw2'].includes(ext)) {
+//       // 🛰️ RAW formats — send to backend
+//       statusEl.textContent = 'Uploading RAW to backend...';
+//       const formData = new FormData();
+//       formData.append('file', f);
+
+//       const res = await fetch('/upload', {
+//         method: 'POST',
+//         body: formData
+//       });
+
+//       if (!res.ok) throw new Error('Backend upload failed');
+
+//       const data = await res.json();
+//       const base64Url = data.converted;
+
+//       statusEl.textContent = 'Decoding converted image...';
+//       const blob = await fetch(base64Url).then(r => r.blob());
+//       bmp = await createImageBitmap(blob, { premultiplyAlpha: 'default' });
+
+//       const image = { name: f.name, bmp, settings: { exposure: 1.0, contrast: 1.0 } };
+//       images.push(image);
+//       addToGallery(images.length - 1);
+//       statusEl.textContent = `Loaded ${f.name}`;
+
+//     } else {
+//       statusEl.textContent = 'Unsupported format';
+//       return;
+//     }
+
+//     // ✅ Upload to WebGPU texture
+//     setTextureFromImageBitmap(bmp);
+//     statusEl.textContent = `Loaded: ${f.name}`;
+//   } catch (err) {
+//     console.error('Upload error:', err);
+//     statusEl.textContent = 'Failed to load image';
+//   }
 // });
 
+fileInput.addEventListener('change', async () => {
+  const files = Array.from(fileInput.files);
+  if (!files.length) return;
 
-// 
-
-
-
-
-// RAW decoder holder
-  let rawModule = null;
-
-  async function ensureDecoder() {
-    if (rawModule) return rawModule;
-    if (typeof RawWasm !== 'function') {
-      throw new Error('RAW decoder library not loaded (rawwasm.js/rawwasm.wasm missing or wrong path).');
-    }
-    rawModule = await RawWasm();
-    return rawModule;
-  }
-
-  async function decodeRawWithModule(arrayBuffer) {
-    await ensureDecoder();
-    const raw = new rawModule.RawImage(new Uint8Array(arrayBuffer));
-    raw.decode();
-    const width = raw.width;
-    const height = raw.height;
-    const pixels = raw.getData(); // expected RGBA
-    raw.destroy();
-    return { width, height, pixels };
-  }
-
-  // debug stub to verify pipeline without WASM
-  function decodeRawStub() {
-    const width = 512, height = 340;
-    const pixels = new Uint8Array(width * height * 4);
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const i = (y * width + x) * 4;
-        pixels[i] = x % 256;
-        pixels[i + 1] = y % 256;
-        pixels[i + 2] = (x + y) % 256;
-        pixels[i + 3] = 255;
-      }
-    }
-    return { width, height, pixels };
-  }
-
-  const statusEl = document.getElementById('status');
-
-  async function imageBitmapFromRGBA(decoded) {
-    const off = document.createElement('canvas');
-    off.width = decoded.width;
-    off.height = decoded.height;
-    const ctx = off.getContext('2d');
-    const imgData = ctx.createImageData(decoded.width, decoded.height);
-    imgData.data.set(decoded.pixels);
-    ctx.putImageData(imgData, 0, 0);
-    return await createImageBitmap(off);
-  }
-
-  fileInput.addEventListener('change', async () => {
-    const f = fileInput.files && fileInput.files[0];
-    if (!f) return;
-    const ext = (f.name.split('.').pop() || '').toLowerCase();
-    console.log('Picked file:', f.name, 'ext:', ext);
-    statusEl.textContent = 'Loading...';
+  for (const f of files) {
+    const ext = f.name.split('.').pop().toLowerCase();
+    statusEl.textContent = `Loading ${f.name}...`;
 
     try {
-      if (['jpg','jpeg','png','webp','gif','bmp','avif'].includes(ext)) {
-        statusEl.textContent = 'Decoding image...';
-        const bmp = await createImageBitmap(f, { premultiplyAlpha: 'default' });
-        setTextureFromImageBitmap(bmp);
-        statusEl.textContent = f.name;
-        return;
+      let bmp;
+
+      if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) {
+        bmp = await createImageBitmap(f, { premultiplyAlpha: 'default' });
+      } else if (['cr2', 'nef', 'arw', 'dng', 'raf', 'rw2'].includes(ext)) {
+        const formData = new FormData();
+        formData.append('file', f);
+
+        const res = await fetch('/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!res.ok) throw new Error('Backend upload failed');
+
+        const data = await res.json();
+        const base64Url = data.converted;
+        const blob = await fetch(base64Url).then(r => r.blob());
+        bmp = await createImageBitmap(blob, { premultiplyAlpha: 'default' });
+      } else {
+        statusEl.textContent = `Unsupported format: ${f.name}`;
+        continue;
       }
 
-      if (['cr2','nef','arw','raf','dng','orf','rw2'].includes(ext)) {
-        statusEl.textContent = 'Decoding RAW...';
-        const arrayBuffer = await f.arrayBuffer();
+      const image = { name: f.name, bmp, settings: { exposure: 1.0, contrast: 1.0 } };
+      images.push(image);
+      addToGallery(images.length - 1);
+      statusEl.textContent = `Loaded: ${f.name}`;
 
-        const useStub = false; // set true to test without the real wasm decoder
-        let decoded;
-        if (useStub) {
-          decoded = decodeRawStub();
-        } else {
-          try {
-            decoded = await decodeRawWithModule(arrayBuffer);
-          } catch (e) {
-            console.warn('Decoder init/parse failed:', e);
-            statusEl.textContent = 'RAW decoder not loaded or failed. Set useStub=true to test.';
-            return;
-          }
-        }
-
-        if (!decoded || !decoded.pixels || decoded.pixels.length !== decoded.width * decoded.height * 4) {
-          throw new Error('Decoder returned invalid pixel buffer');
-        }
-
-        statusEl.textContent = 'Uploading pixels to GPU...';
-        const bmp = await imageBitmapFromRGBA(decoded);
-        setTextureFromImageBitmap(bmp);
-        statusEl.textContent = f.name;
-        return;
+      // Auto-select first image if none selected yet
+      if (currentImageIndex === null) {
+        selectImage(images.length - 1);
       }
-
-      statusEl.textContent = 'Unsupported format';
     } catch (err) {
-      console.error('Upload/Decode error:', err);
-      statusEl.textContent = 'Failed to load file: ' + (err.message || '');
+      console.error('Upload error:', err);
+      statusEl.textContent = `Failed to load ${f.name}`;
     }
+  }
+});
+
+let device;
+let uniformBuffer;
+
+// Add thumbnail to gallery
+function addToGallery(index) {
+  const bmp = images[index].bmp;
+  const thumbCanvas = document.createElement('canvas');
+  thumbCanvas.width = 80;
+  thumbCanvas.height = 60;
+  const ctx = thumbCanvas.getContext('2d');
+  ctx.drawImage(bmp, 0, 0, thumbCanvas.width, thumbCanvas.height);
+  thumbCanvas.toBlob(blob => {
+    const img = document.createElement('img');
+    img.width = 80;
+    img.height = 60;
+    img.style.cursor = 'pointer';
+    img.style.border = '2px solid transparent';
+    img.src = URL.createObjectURL(blob);
+    img.onclick = () => selectImage(index);
+    galleryEl.appendChild(img);
+  }, 'image/png');
+}
+
+
+// Select image
+function selectImage(index) {
+  currentImageIndex = index;
+  const image = images[index];
+  const settings = image.settings || {};
+
+  setTextureFromImageBitmap(image.bmp);
+  applySettings(settings); // ← apply without overwriting
+  draw();
+  highlightGallery(index);
+  statusEl.textContent = `Selected: ${image.name}`;
+
+  // Restore sliders
+  for (const [sliderId, { key, label, format }] of Object.entries(sliderMap)) {
+    const slider = document.getElementById(sliderId);
+    const labelEl = document.getElementById(label);
+    if (!slider || !labelEl) continue;
+
+    const val = settings[key] ?? parseFloat(slider.defaultValue);
+    slider.value = val;
+    labelEl.textContent = format ? format(val) : val;
+  }
+}
+
+function applySettings(settings) {
+
+  console.log('applySettings -----', settings)
+  if (!device || !uniformBuffer) {
+    console.warn('WebGPU device or buffer not ready');
+    return;
+  }
+
+  const data = new Float32Array([
+    settings.exposure ?? 0,
+    settings.contrast ?? 0,
+    settings.highlights ?? 0,
+    settings.shadows ?? 0,
+    settings.whites ?? 0,
+    settings.blacks ?? 0,
+    settings.temperature ?? 0,
+    settings.tint ?? 0,
+    settings.curveShadow ?? 0,
+    settings.curveMid ?? 0.5,
+    settings.curveHighlight ?? 1,
+    settings.shadowHue ?? 0,
+    settings.shadowTint ?? 1,
+    settings.redHue ?? 0,
+    settings.redSat ?? 1,
+    settings.greenHue ?? 0,
+    settings.greenSat ?? 1,
+    settings.blueHue ?? 0,
+    settings.blueSat ?? 1
+  ]);
+
+  device.queue.writeBuffer(uniformBuffer, 0, data);
+}
+
+
+const defaultSettings = {
+  zoom: 100,
+  temperature: 0,
+  tint: 0,
+  exposure: 0,
+  contrast: 0,
+  highlights: 0,
+  shadows: 0,
+  whites: 0,
+  blacks: 0,
+  curveShadow: 0,
+  curveMid: 0.5,
+  curveHighlight: 1,
+  shadowHue: 0,
+  shadowTint: 1,
+  redHue: 0,
+  redSat: 1,
+  greenHue: 0,
+  greenSat: 1,
+  blueHue: 0,
+  blueSat: 1
+};
+
+
+const sliderMap = {
+  zoomSlider:       { key: 'zoom',        label: 'zoomVal',        format: v => `${v}%` },
+  temp:             { key: 'temperature', label: 'tempVal' },
+  tint:             { key: 'tint',        label: 'tintVal' },
+  exposure:         { key: 'exposure',    label: 'exposureVal',    format: v => v.toFixed(2) },
+  contrast:         { key: 'contrast',    label: 'contrastVal',    format: v => v.toFixed(2) },
+  highlights:       { key: 'highlights',  label: 'highlightsVal',  format: v => v.toFixed(2) },
+  shadows:          { key: 'shadows',     label: 'shadowsVal',     format: v => v.toFixed(2) },
+  whites:           { key: 'whites',      label: 'whitesVal',      format: v => v.toFixed(2) },
+  blacks:           { key: 'blacks',      label: 'blacksVal',      format: v => v.toFixed(2) },
+  curveShadow:      { key: 'curveShadow', label: 'curveShadowVal', format: v => v.toFixed(2) },
+  curveMid:         { key: 'curveMid',    label: 'curveMidVal',    format: v => v.toFixed(2) },
+  curveHighlight:   { key: 'curveHighlight', label: 'curveHighlightVal', format: v => v.toFixed(2) },
+  shadowHue:        { key: 'shadowHue',   label: 'shadowHueVal' },
+  shadowTint:       { key: 'shadowTint',  label: 'shadowTintVal',  format: v => v.toFixed(2) },
+  redHue:           { key: 'redHue',      label: 'redHueVal' },
+  redSat:           { key: 'redSat',      label: 'redSatVal',      format: v => v.toFixed(2) },
+  greenHue:         { key: 'greenHue',    label: 'greenHueVal' },
+  greenSat:         { key: 'greenSat',    label: 'greenSatVal',    format: v => v.toFixed(2) },
+  blueHue:          { key: 'blueHue',     label: 'blueHueVal' },
+  blueSat:          { key: 'blueSat',     label: 'blueSatVal',     format: v => v.toFixed(2) },
+};
+
+for (const [sliderId, { key, label, format }] of Object.entries(sliderMap)) {
+  const slider = document.getElementById(sliderId);
+  const labelEl = document.getElementById(label);
+  if (!slider || !labelEl) continue;
+
+  slider.addEventListener('input', () => {
+    const val = parseFloat(slider.value);
+    labelEl.textContent = format ? format(val) : val;
+    updateSetting(key, val);
   });
+}
 
 
+function updateSetting(key, value) {
+  // console.log('updateSetting-------', key, value)
+  if (currentImageIndex !== null) {
+    const image = images[currentImageIndex];
+    image.settings = image.settings || {};
+    image.settings[key] = value;
 
+    applySettings(image.settings); // ← your WebGPU logic
+    draw(); // ← re-render
+  }
+}
+
+
+// Highlight selected thumbnail
+function highlightGallery(index) {
+  Array.from(galleryEl.children).forEach((el, i) => {
+    el.style.border = i === index ? '2px solid #00f' : '2px solid transparent';
+  });
+}
+
+// Copy/paste settings
+function copySettings() {
+  if (currentImageIndex !== null) {
+    copiedSettings = getEditSettings(images[currentImageIndex]);
+    statusEl.textContent = 'Settings copied';
+  }
+}
+function pasteSettings() {
+  if (copiedSettings && currentImageIndex !== null) {
+    applySettings(images[currentImageIndex], copiedSettings);
+    statusEl.textContent = 'Settings pasted';
+  }
+}
+
+// Keyboard shortcuts (optional)
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'c') copySettings();
+  if (e.ctrlKey && e.key === 'v') pasteSettings();
+});
 
 
 
@@ -962,5 +1140,75 @@ console.log('Calibration uniform map sample:', calUniforms.shadowHue, calUniform
 
 /* draw will run automatically when image is set and sliders move */
 </script>
+
+<!-- <script type="module">
+import * as LibRawModule from "https://cdn.jsdelivr.net/npm/libraw-wasm@1.1.2/dist/index.mjs";
+
+const LibRaw = await LibRawModule.default?.() || LibRawModule.LibRaw?.();
+
+// const canvas = document.getElementById('glcanvas');
+// const gl = canvas.getContext('webgl');
+// const fileInput = document.getElementById('fileInput');
+const status = document.getElementById('status');
+let texture = null;
+let imageWidth = 0, imageHeight = 0;
+
+fileInput.addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  status.textContent = `Loading ${file.name}...`;
+
+  try {
+    const buffer = await file.arrayBuffer();
+
+    if (file.name.toLowerCase().endsWith(".cr2")) {
+      const libraw = await LibRaw();
+      const raw = libraw.decode(new Uint8Array(buffer));
+      const imgData = new Uint8ClampedArray(raw.data);
+      imageWidth = raw.width;
+      imageHeight = raw.height;
+
+      const imageBitmap = await createImageBitmap(
+        new ImageData(imgData, imageWidth, imageHeight)
+      );
+      uploadToGL(imageBitmap);
+      status.textContent = "RAW image loaded successfully.";
+    } else {
+      const img = new Image();
+      img.onload = () => {
+        uploadToGL(img);
+        status.textContent = "Standard image loaded.";
+      };
+      img.src = URL.createObjectURL(file);
+    }
+
+  } catch (err) {
+    console.error(err);
+    status.textContent = "Failed to load image.";
+  }
+});
+
+function uploadToGL(image) {
+  canvas.width = image.width;
+  canvas.height = image.height;
+  imageWidth = image.width;
+  imageHeight = image.height;
+
+  if (texture) gl.deleteTexture(texture);
+  texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+
+  draw(); // call your WebGL shader render function
+}
+</script> -->
+
+
+
 </body>
 </html>

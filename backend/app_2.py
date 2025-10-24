@@ -4,7 +4,8 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image
 import numpy as np
 import photoedit
-import io, os, uuid
+import io, os, uuid, base64
+import rawpy
 
 app = FastAPI()
 # app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
@@ -23,24 +24,45 @@ async def index():
     with open("frontend/index_gpu.html", "r", encoding="utf-8") as f:
         return HTMLResponse(f.read())
 
+
 @app.post("/upload")
 async def upload_image(file: UploadFile = File(...)):
-    global CURRENT_IMAGE
     ext = file.filename.split(".")[-1].lower()
-    if ext not in ["jpg", "jpeg", "png"]:
-        raise HTTPException(400, "Supported: jpg, jpeg, png")
+    supported = ["jpg", "jpeg", "png", "cr2", "webp", "gif", "bmp", "avif",
+                 "nef", "arw", "raf", "dng", "orf", "rw2"]
+    if ext not in supported:
+        raise HTTPException(400, "Your file is not supported!")
 
     contents = await file.read()
-    img = Image.open(io.BytesIO(contents)).convert("RGBA")  # keep RGBA in memory
-    CURRENT_IMAGE = img
 
-    new_name = f"{uuid.uuid4()}.{ext}"
+    try:
+        if ext in ["cr2", "nef", "arw", "raf", "dng", "orf", "rw2"]:
+            # RAW decode using rawpy
+            with rawpy.imread(io.BytesIO(contents)) as raw:
+                rgb = raw.postprocess()
+            img = Image.fromarray(rgb).convert("RGBA")
+        else:
+            # Standard image decode
+            img = Image.open(io.BytesIO(contents)).convert("RGBA")
+    except Exception as e:
+        raise HTTPException(500, f"Failed to decode image: {str(e)}")
+
+    # Save as PNG regardless of input format
+    new_name = f"{uuid.uuid4()}.png"
     save_path = os.path.join(UPLOAD_DIR, new_name)
-    if ext in ["jpg", "jpeg"]:
-        img.convert("RGB").save(save_path, format="JPEG", quality=95)
-    else:
-        img.save(save_path, format="PNG")
-    return JSONResponse({"filename": new_name})
+    img.save(save_path, format="PNG")
+
+    # Encode to base64 for frontend (optional)
+    buffer = io.BytesIO()
+    img.save(buffer, format="PNG")
+    base64_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
+    data_url = f"data:image/png;base64,{base64_data}"
+
+    return JSONResponse({
+        "filename": file.filename,
+        "converted": data_url
+    })
+
 
 @app.post("/adjust")
 async def adjust_image(
