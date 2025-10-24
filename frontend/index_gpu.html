@@ -746,50 +746,80 @@ function showHSL(color){
 }
 
 /* ---------- draw() sets uniforms and renders ---------- */
-function draw(){
-  if(!tex) return;
-  gl.clearColor(0,0,0,1);
+// function draw(){
+//   if(!tex) return;
+//   gl.clearColor(0,0,0,1);
+//   gl.clear(gl.COLOR_BUFFER_BIT);
+//   gl.useProgram(prog);
+
+//   // set texture unit 0
+//   gl.uniform1i(gl.getUniformLocation(prog, "u_tex"), 0);
+
+//   // basic
+//   gl.uniform1f(basicUniforms.temp, basicValues.temp);
+//   gl.uniform1f(basicUniforms.tint, basicValues.tint);
+//   gl.uniform1f(basicUniforms.exposure, basicValues.exposure);
+//   gl.uniform1f(basicUniforms.contrast, basicValues.contrast);
+//   gl.uniform1f(basicUniforms.highlights, basicValues.highlights);
+//   gl.uniform1f(basicUniforms.shadows, basicValues.shadows);
+//   gl.uniform1f(basicUniforms.whites, basicValues.whites);
+//   gl.uniform1f(basicUniforms.blacks, basicValues.blacks);
+//   gl.uniform1f(basicUniforms.curveShadow, basicValues.curveShadow);
+//   gl.uniform1f(basicUniforms.curveMid, basicValues.curveMid);
+//   gl.uniform1f(basicUniforms.curveHighlight, basicValues.curveHighlight);
+
+//   // HSL bands
+//   for(let i=0;i<8;i++){
+//     const h = Number(sliders[i].hue.value);
+//     const s = Number(sliders[i].sat.value);
+//     const l = Number(sliders[i].lig.value);
+//     gl.uniform1f(uniforms[`hue${i}`], h);
+//     gl.uniform1f(uniforms[`sat${i}`], s);
+//     gl.uniform1f(uniforms[`lig${i}`], l);
+//   }
+
+//   // calibration
+//   gl.uniform1f(calUniforms.shadowHue, calibrationValues.shadowHue);
+//   gl.uniform1f(calUniforms.shadowTint, calibrationValues.shadowTint);
+//   gl.uniform1f(calUniforms.redHue, calibrationValues.redHue);
+//   gl.uniform1f(calUniforms.redSat, calibrationValues.redSat);
+//   gl.uniform1f(calUniforms.greenHue, calibrationValues.greenHue);
+//   gl.uniform1f(calUniforms.greenSat, calibrationValues.greenSat);
+//   gl.uniform1f(calUniforms.blueHue, calibrationValues.blueHue);
+//   gl.uniform1f(calUniforms.blueSat, calibrationValues.blueSat);
+
+//   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+// }
+
+function draw() {
+  if (!tex || currentImageIndex === null) return;
+  const s = images[currentImageIndex].settings;
+
+  gl.clearColor(0, 0, 0, 1);
   gl.clear(gl.COLOR_BUFFER_BIT);
   gl.useProgram(prog);
-
-  // set texture unit 0
   gl.uniform1i(gl.getUniformLocation(prog, "u_tex"), 0);
 
   // basic
-  gl.uniform1f(basicUniforms.temp, basicValues.temp);
-  gl.uniform1f(basicUniforms.tint, basicValues.tint);
-  gl.uniform1f(basicUniforms.exposure, basicValues.exposure);
-  gl.uniform1f(basicUniforms.contrast, basicValues.contrast);
-  gl.uniform1f(basicUniforms.highlights, basicValues.highlights);
-  gl.uniform1f(basicUniforms.shadows, basicValues.shadows);
-  gl.uniform1f(basicUniforms.whites, basicValues.whites);
-  gl.uniform1f(basicUniforms.blacks, basicValues.blacks);
-  gl.uniform1f(basicUniforms.curveShadow, basicValues.curveShadow);
-  gl.uniform1f(basicUniforms.curveMid, basicValues.curveMid);
-  gl.uniform1f(basicUniforms.curveHighlight, basicValues.curveHighlight);
+  for (const key in s.basic) {
+    gl.uniform1f(basicUniforms[key], s.basic[key]);
+  }
 
   // HSL bands
-  for(let i=0;i<8;i++){
-    const h = Number(sliders[i].hue.value);
-    const s = Number(sliders[i].sat.value);
-    const l = Number(sliders[i].lig.value);
-    gl.uniform1f(uniforms[`hue${i}`], h);
-    gl.uniform1f(uniforms[`sat${i}`], s);
-    gl.uniform1f(uniforms[`lig${i}`], l);
+  for (let i = 0; i < 8; i++) {
+    gl.uniform1f(uniforms[`hue${i}`], s.hsl[i].hue);
+    gl.uniform1f(uniforms[`sat${i}`], s.hsl[i].sat);
+    gl.uniform1f(uniforms[`lig${i}`], s.hsl[i].lig);
   }
 
   // calibration
-  gl.uniform1f(calUniforms.shadowHue, calibrationValues.shadowHue);
-  gl.uniform1f(calUniforms.shadowTint, calibrationValues.shadowTint);
-  gl.uniform1f(calUniforms.redHue, calibrationValues.redHue);
-  gl.uniform1f(calUniforms.redSat, calibrationValues.redSat);
-  gl.uniform1f(calUniforms.greenHue, calibrationValues.greenHue);
-  gl.uniform1f(calUniforms.greenSat, calibrationValues.greenSat);
-  gl.uniform1f(calUniforms.blueHue, calibrationValues.blueHue);
-  gl.uniform1f(calUniforms.blueSat, calibrationValues.blueSat);
+  for (const key in s.calibration) {
+    gl.uniform1f(calUniforms[key], s.calibration[key]);
+  }
 
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
+
 
 
 
@@ -881,7 +911,18 @@ fileInput.addEventListener('change', async () => {
         continue;
       }
 
-      const image = { name: f.name, bmp, settings: { exposure: 1.0, contrast: 1.0 } };
+      // const image = { name: f.name, bmp, settings: { exposure: 1.0, contrast: 1.0 } };
+      const image = {
+        name: f.name,
+        bmp,
+        settings: {
+          basic: { ...defaultBasicValues },
+          calibration: { ...defaultCalibrationValues },
+          hsl: Array(8).fill().map(() => ({ hue: 0, sat: 1, lig: 1 }))
+        }
+      };
+      images.push(image);
+
       images.push(image);
       addToGallery(images.length - 1);
       statusEl.textContent = `Loaded: ${f.name}`;
@@ -897,8 +938,23 @@ fileInput.addEventListener('change', async () => {
   }
 });
 
-let device;
-let uniformBuffer;
+// let device;
+// let uniformBuffer;
+
+const defaultBasicValues = {
+  temp: 0.0, tint: 0.0,
+  exposure: 0.0, contrast: 0.0,
+  highlights: 0.0, shadows: 0.0, whites: 0.0, blacks: 0.0,
+  curveShadow: 0.0, curveMid: 0.5, curveHighlight: 1.0
+};
+
+const defaultCalibrationValues = {
+  shadowHue: 0, shadowTint: 1,
+  redHue: 0, redSat: 1,
+  greenHue: 0, greenSat: 1,
+  blueHue: 0, blueSat: 1
+};
+
 
 // Add thumbnail to gallery
 function addToGallery(index) {
@@ -948,10 +1004,10 @@ function selectImage(index) {
 function applySettings(settings) {
 
   console.log('applySettings -----', settings)
-  if (!device || !uniformBuffer) {
-    console.warn('WebGPU device or buffer not ready');
-    return;
-  }
+  // if (!device || !uniformBuffer) {
+  //   console.warn('WebGPU device or buffer not ready');
+  //   return;
+  // }
 
   const data = new Float32Array([
     settings.exposure ?? 0,
@@ -975,7 +1031,7 @@ function applySettings(settings) {
     settings.blueSat ?? 1
   ]);
 
-  device.queue.writeBuffer(uniformBuffer, 0, data);
+  // device.queue.writeBuffer(uniformBuffer, 0, data);
 }
 
 
@@ -1004,29 +1060,31 @@ const defaultSettings = {
 
 
 const sliderMap = {
-  zoomSlider:       { key: 'zoom',        label: 'zoomVal',        format: v => `${v}%` },
-  temp:             { key: 'temperature', label: 'tempVal' },
-  tint:             { key: 'tint',        label: 'tintVal' },
-  exposure:         { key: 'exposure',    label: 'exposureVal',    format: v => v.toFixed(2) },
-  contrast:         { key: 'contrast',    label: 'contrastVal',    format: v => v.toFixed(2) },
-  highlights:       { key: 'highlights',  label: 'highlightsVal',  format: v => v.toFixed(2) },
-  shadows:          { key: 'shadows',     label: 'shadowsVal',     format: v => v.toFixed(2) },
-  whites:           { key: 'whites',      label: 'whitesVal',      format: v => v.toFixed(2) },
-  blacks:           { key: 'blacks',      label: 'blacksVal',      format: v => v.toFixed(2) },
-  curveShadow:      { key: 'curveShadow', label: 'curveShadowVal', format: v => v.toFixed(2) },
-  curveMid:         { key: 'curveMid',    label: 'curveMidVal',    format: v => v.toFixed(2) },
-  curveHighlight:   { key: 'curveHighlight', label: 'curveHighlightVal', format: v => v.toFixed(2) },
-  shadowHue:        { key: 'shadowHue',   label: 'shadowHueVal' },
-  shadowTint:       { key: 'shadowTint',  label: 'shadowTintVal',  format: v => v.toFixed(2) },
-  redHue:           { key: 'redHue',      label: 'redHueVal' },
-  redSat:           { key: 'redSat',      label: 'redSatVal',      format: v => v.toFixed(2) },
-  greenHue:         { key: 'greenHue',    label: 'greenHueVal' },
-  greenSat:         { key: 'greenSat',    label: 'greenSatVal',    format: v => v.toFixed(2) },
-  blueHue:          { key: 'blueHue',     label: 'blueHueVal' },
-  blueSat:          { key: 'blueSat',     label: 'blueSatVal',     format: v => v.toFixed(2) },
+  zoomSlider:       { panel: 'basic', key: 'zoom',        label: 'zoomVal',        format: v => `${v}%` },
+  temp:             { panel: 'basic', key: 'temperature', label: 'tempVal' },
+  tint:             { panel: 'basic', key: 'tint',        label: 'tintVal' },
+  exposure:         { panel: 'basic', key: 'exposure',    label: 'exposureVal',    format: v => v.toFixed(2) },
+  contrast:         { panel: 'basic', key: 'contrast',    label: 'contrastVal',    format: v => v.toFixed(2) },
+  highlights:       { panel: 'basic', key: 'highlights',  label: 'highlightsVal',  format: v => v.toFixed(2) },
+  shadows:          { panel: 'basic', key: 'shadows',     label: 'shadowsVal',     format: v => v.toFixed(2) },
+  whites:           { panel: 'basic', key: 'whites',      label: 'whitesVal',      format: v => v.toFixed(2) },
+  blacks:           { panel: 'basic', key: 'blacks',      label: 'blacksVal',      format: v => v.toFixed(2) },
+  curveShadow:      { panel: 'basic', key: 'curveShadow', label: 'curveShadowVal', format: v => v.toFixed(2) },
+  curveMid:         { panel: 'basic', key: 'curveMid',    label: 'curveMidVal',    format: v => v.toFixed(2) },
+  curveHighlight:   { panel: 'basic', key: 'curveHighlight', label: 'curveHighlightVal', format: v => v.toFixed(2) },
+
+  shadowHue:        { panel: 'calibration', key: 'shadowHue',   label: 'shadowHueVal' },
+  shadowTint:       { panel: 'calibration', key: 'shadowTint',  label: 'shadowTintVal',  format: v => v.toFixed(2) },
+  redHue:           { panel: 'calibration', key: 'redHue',      label: 'redHueVal' },
+  redSat:           { panel: 'calibration', key: 'redSat',      label: 'redSatVal',      format: v => v.toFixed(2) },
+  greenHue:         { panel: 'calibration', key: 'greenHue',    label: 'greenHueVal' },
+  greenSat:         { panel: 'calibration', key: 'greenSat',    label: 'greenSatVal',    format: v => v.toFixed(2) },
+  blueHue:          { panel: 'calibration', key: 'blueHue',     label: 'blueHueVal' },
+  blueSat:          { panel: 'calibration', key: 'blueSat',     label: 'blueSatVal',     format: v => v.toFixed(2) },
 };
 
-for (const [sliderId, { key, label, format }] of Object.entries(sliderMap)) {
+
+for (const [sliderId, { panel, key, label, format }] of Object.entries(sliderMap)) {
   const slider = document.getElementById(sliderId);
   const labelEl = document.getElementById(label);
   if (!slider || !labelEl) continue;
@@ -1034,22 +1092,66 @@ for (const [sliderId, { key, label, format }] of Object.entries(sliderMap)) {
   slider.addEventListener('input', () => {
     const val = parseFloat(slider.value);
     labelEl.textContent = format ? format(val) : val;
-    updateSetting(key, val);
+    updateSetting(panel, key, val);
   });
 }
 
 
-function updateSetting(key, value) {
-  // console.log('updateSetting-------', key, value)
+
+function updateSetting(panel, key, value) {
+  console.log('updateSetting panel ------', panel)
+  console.log('updateSetting ------ k, v', key, value)
   if (currentImageIndex !== null) {
     const image = images[currentImageIndex];
-    image.settings = image.settings || {};
-    image.settings[key] = value;
-
-    applySettings(image.settings); // ← your WebGPU logic
-    draw(); // ← re-render
+    image.settings[panel][key] = value;
+    draw();
   }
 }
+
+// exposure.addEventListener('input', () => {
+//   const val = parseFloat(exposure.value);
+//   exposureVal.textContent = val.toFixed(2);
+//   updateSetting('basic', 'exposure', val);
+// });
+
+// redHueSlider.addEventListener('input', () => {
+//   const val = parseFloat(redHueSlider.value);
+//   redHueVal.textContent = val.toFixed(1);
+//   updateSetting('calibration', 'redHue', val);
+// });
+
+// HSL
+// sliders[i].hue.addEventListener('input', () => {
+//   images[currentImageIndex].settings.hsl[i].hue = parseFloat(sliders[i].hue.value);
+//   draw();
+// });
+
+function restoreSliders(settings) {
+  for (const key in settings.basic) {
+    const slider = document.getElementById(key);
+    const label = document.getElementById(key + 'Val');
+    if (slider && label) {
+      slider.value = settings.basic[key];
+      label.textContent = settings.basic[key].toFixed(2);
+    }
+  }
+
+  for (const key in settings.calibration) {
+    const slider = document.getElementById(key);
+    const label = document.getElementById(key + 'Val');
+    if (slider && label) {
+      slider.value = settings.calibration[key];
+      label.textContent = settings.calibration[key].toFixed(2);
+    }
+  }
+
+  for (let i = 0; i < 8; i++) {
+    sliders[i].hue.value = settings.hsl[i].hue;
+    sliders[i].sat.value = settings.hsl[i].sat;
+    sliders[i].lig.value = settings.hsl[i].lig;
+  }
+}
+
 
 
 // Highlight selected thumbnail
