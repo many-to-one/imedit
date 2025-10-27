@@ -65,7 +65,7 @@
 
         <div class="row">
           <label for="temp">Temperature</label>
-          <input id="temp" type="range" min="-100" max="100" step="1" value="0">
+          <input id="temp" type="range" min="-2" max="2" step="0.1" value="0">
           <div class="value" id="tempVal">0</div>
         </div>
 
@@ -198,6 +198,18 @@
           <div class="value" id="blueSatVal">1.00</div>
         </div>
       </div>
+
+      <!-- Add Layer -->
+      <div class="card">
+        <h3>Layers</h3>
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px">
+          <label for="layerSelect">Active Layer:</label>
+          <select id="layerSelect"></select>
+          <button id="addLayerBtn">Add Layer</button>
+        </div>
+        <div id="layerStatus" style="font-size:12px; color:var(--muted)">No layer selected</div>
+      </div>
+
 
 
       <!-- Save -->
@@ -746,51 +758,6 @@ function showHSL(color){
 }
 
 /* ---------- draw() sets uniforms and renders ---------- */
-// function draw(){
-//   if(!tex) return;
-//   gl.clearColor(0,0,0,1);
-//   gl.clear(gl.COLOR_BUFFER_BIT);
-//   gl.useProgram(prog);
-
-//   // set texture unit 0
-//   gl.uniform1i(gl.getUniformLocation(prog, "u_tex"), 0);
-
-//   // basic
-//   gl.uniform1f(basicUniforms.temp, basicValues.temp);
-//   gl.uniform1f(basicUniforms.tint, basicValues.tint);
-//   gl.uniform1f(basicUniforms.exposure, basicValues.exposure);
-//   gl.uniform1f(basicUniforms.contrast, basicValues.contrast);
-//   gl.uniform1f(basicUniforms.highlights, basicValues.highlights);
-//   gl.uniform1f(basicUniforms.shadows, basicValues.shadows);
-//   gl.uniform1f(basicUniforms.whites, basicValues.whites);
-//   gl.uniform1f(basicUniforms.blacks, basicValues.blacks);
-//   gl.uniform1f(basicUniforms.curveShadow, basicValues.curveShadow);
-//   gl.uniform1f(basicUniforms.curveMid, basicValues.curveMid);
-//   gl.uniform1f(basicUniforms.curveHighlight, basicValues.curveHighlight);
-
-//   // HSL bands
-//   for(let i=0;i<8;i++){
-//     const h = Number(sliders[i].hue.value);
-//     const s = Number(sliders[i].sat.value);
-//     const l = Number(sliders[i].lig.value);
-//     gl.uniform1f(uniforms[`hue${i}`], h);
-//     gl.uniform1f(uniforms[`sat${i}`], s);
-//     gl.uniform1f(uniforms[`lig${i}`], l);
-//   }
-
-//   // calibration
-//   gl.uniform1f(calUniforms.shadowHue, calibrationValues.shadowHue);
-//   gl.uniform1f(calUniforms.shadowTint, calibrationValues.shadowTint);
-//   gl.uniform1f(calUniforms.redHue, calibrationValues.redHue);
-//   gl.uniform1f(calUniforms.redSat, calibrationValues.redSat);
-//   gl.uniform1f(calUniforms.greenHue, calibrationValues.greenHue);
-//   gl.uniform1f(calUniforms.greenSat, calibrationValues.greenSat);
-//   gl.uniform1f(calUniforms.blueHue, calibrationValues.blueHue);
-//   gl.uniform1f(calUniforms.blueSat, calibrationValues.blueSat);
-
-//   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-// }
-
 function draw() {
   if (!tex || currentImageIndex === null) return;
   const s = images[currentImageIndex].settings;
@@ -819,64 +786,39 @@ function draw() {
 
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
+// function draw() {
+//   if (!tex || currentImageIndex === null) return;
+//   const image = images[currentImageIndex];
+//   const layer = image.layers[image.activeLayer];
+//   const s = layer.settings;
+
+//   gl.clearColor(0, 0, 0, 1);
+//   gl.clear(gl.COLOR_BUFFER_BIT);
+//   gl.useProgram(prog);
+//   gl.uniform1i(gl.getUniformLocation(prog, "u_tex"), 0);
+
+//   for (const key in s.basic) {
+//     gl.uniform1f(basicUniforms[key], s.basic[key]);
+//   }
+
+//   for (let i = 0; i < 8; i++) {
+//     gl.uniform1f(uniforms[`hue${i}`], s.hsl[i].hue);
+//     gl.uniform1f(uniforms[`sat${i}`], s.hsl[i].sat);
+//     gl.uniform1f(uniforms[`lig${i}`], s.hsl[i].lig);
+//   }
+
+//   for (const key in s.calibration) {
+//     gl.uniform1f(calUniforms[key], s.calibration[key]);
+//   }
+
+//   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+// }
 
 
 
 
 const fileInput = document.getElementById('fileInput');
 const statusEl = document.getElementById('status');
-
-// fileInput.addEventListener('change', async () => {
-//   const f = fileInput.files && fileInput.files[0];
-//   if (!f) return;
-
-//   const ext = f.name.split('.').pop().toLowerCase();
-//   statusEl.textContent = 'Loading...';
-
-//   try {
-//     let bmp;
-
-//     if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) {
-//       // ✅ Native formats — decode locally
-//       bmp = await createImageBitmap(f, { premultiplyAlpha: 'default' });
-//     } else if (['cr2', 'nef', 'arw', 'dng', 'raf', 'rw2'].includes(ext)) {
-//       // 🛰️ RAW formats — send to backend
-//       statusEl.textContent = 'Uploading RAW to backend...';
-//       const formData = new FormData();
-//       formData.append('file', f);
-
-//       const res = await fetch('/upload', {
-//         method: 'POST',
-//         body: formData
-//       });
-
-//       if (!res.ok) throw new Error('Backend upload failed');
-
-//       const data = await res.json();
-//       const base64Url = data.converted;
-
-//       statusEl.textContent = 'Decoding converted image...';
-//       const blob = await fetch(base64Url).then(r => r.blob());
-//       bmp = await createImageBitmap(blob, { premultiplyAlpha: 'default' });
-
-//       const image = { name: f.name, bmp, settings: { exposure: 1.0, contrast: 1.0 } };
-//       images.push(image);
-//       addToGallery(images.length - 1);
-//       statusEl.textContent = `Loaded ${f.name}`;
-
-//     } else {
-//       statusEl.textContent = 'Unsupported format';
-//       return;
-//     }
-
-//     // ✅ Upload to WebGPU texture
-//     setTextureFromImageBitmap(bmp);
-//     statusEl.textContent = `Loaded: ${f.name}`;
-//   } catch (err) {
-//     console.error('Upload error:', err);
-//     statusEl.textContent = 'Failed to load image';
-//   }
-// });
 
 fileInput.addEventListener('change', async () => {
   const files = Array.from(fileInput.files);
@@ -911,7 +853,6 @@ fileInput.addEventListener('change', async () => {
         continue;
       }
 
-      // const image = { name: f.name, bmp, settings: { exposure: 1.0, contrast: 1.0 } };
       const image = {
         name: f.name,
         bmp,
@@ -921,9 +862,23 @@ fileInput.addEventListener('change', async () => {
           hsl: Array(8).fill().map(() => ({ hue: 0, sat: 1, lig: 1 }))
         }
       };
+      // const image = {
+      //   name: f.name,
+      //   bmp,
+      //   layers: [
+      //     {
+      //       name: 'Base',
+      //       settings: {
+      //         basic: { ...defaultBasicValues },
+      //         calibration: { ...defaultCalibrationValues },
+      //         hsl: Array(8).fill().map(() => ({ hue: 0, sat: 1, lig: 1 }))
+      //       }
+      //     }
+      //   ],
+      //   activeLayer: 0
+      // };
       images.push(image);
 
-      images.push(image);
       addToGallery(images.length - 1);
       statusEl.textContent = `Loaded: ${f.name}`;
 
@@ -1061,7 +1016,7 @@ const defaultSettings = {
 
 const sliderMap = {
   zoomSlider:       { panel: 'basic', key: 'zoom',        label: 'zoomVal',        format: v => `${v}%` },
-  temp:             { panel: 'basic', key: 'temperature', label: 'tempVal' },
+  temp:             { panel: 'basic', key: 'temp',        label: 'tempVal' },
   tint:             { panel: 'basic', key: 'tint',        label: 'tintVal' },
   exposure:         { panel: 'basic', key: 'exposure',    label: 'exposureVal',    format: v => v.toFixed(2) },
   contrast:         { panel: 'basic', key: 'contrast',    label: 'contrastVal',    format: v => v.toFixed(2) },
@@ -1083,18 +1038,35 @@ const sliderMap = {
   blueSat:          { panel: 'calibration', key: 'blueSat',     label: 'blueSatVal',     format: v => v.toFixed(2) },
 };
 
+// Dynamically add HSL sliders
+for (let i = 0; i < 8; i++) {
+  sliderMap[`hue_${i}`] = { panel: 'hsl', index: i, key: 'hue', label: `hueVal_${i}` };
+  sliderMap[`sat_${i}`] = { panel: 'hsl', index: i, key: 'sat', label: `satVal_${i}`, format: v => v.toFixed(2) };
+  sliderMap[`lig_${i}`] = { panel: 'hsl', index: i, key: 'lig', label: `ligVal_${i}`, format: v => v.toFixed(2) };
+}
 
-for (const [sliderId, { panel, key, label, format }] of Object.entries(sliderMap)) {
+
+// Slider wiring loop
+for (const [sliderId, config] of Object.entries(sliderMap)) {
   const slider = document.getElementById(sliderId);
-  const labelEl = document.getElementById(label);
+  const labelEl = document.getElementById(config.label);
   if (!slider || !labelEl) continue;
 
   slider.addEventListener('input', () => {
     const val = parseFloat(slider.value);
-    labelEl.textContent = format ? format(val) : val;
-    updateSetting(panel, key, val);
+    labelEl.textContent = config.format ? config.format(val) : val;
+
+    if (config.panel === 'hsl') {
+      const band = images[currentImageIndex].settings.hsl[config.index];
+      band[config.key] = val;
+    } else {
+      images[currentImageIndex].settings[config.panel][config.key] = val;
+    }
+
+    draw();
   });
 }
+
 
 
 
@@ -1107,52 +1079,130 @@ function updateSetting(panel, key, value) {
     draw();
   }
 }
+// function updateSetting(panel, key, value) {
+//   if (currentImageIndex !== null) {
+//     const image = images[currentImageIndex];
+//     const layer = image.layers[image.activeLayer];
+//     layer.settings[panel][key] = value;
+//     draw();
+//   }
+// }
 
-// exposure.addEventListener('input', () => {
-//   const val = parseFloat(exposure.value);
-//   exposureVal.textContent = val.toFixed(2);
-//   updateSetting('basic', 'exposure', val);
-// });
 
-// redHueSlider.addEventListener('input', () => {
-//   const val = parseFloat(redHueSlider.value);
-//   redHueVal.textContent = val.toFixed(1);
-//   updateSetting('calibration', 'redHue', val);
-// });
-
-// HSL
-// sliders[i].hue.addEventListener('input', () => {
-//   images[currentImageIndex].settings.hsl[i].hue = parseFloat(sliders[i].hue.value);
-//   draw();
-// });
 
 function restoreSliders(settings) {
-  for (const key in settings.basic) {
-    const slider = document.getElementById(key);
-    const label = document.getElementById(key + 'Val');
-    if (slider && label) {
-      slider.value = settings.basic[key];
-      label.textContent = settings.basic[key].toFixed(2);
-    }
-  }
+  for (const [sliderId, config] of Object.entries(sliderMap)) {
+    const slider = document.getElementById(sliderId);
+    const labelEl = document.getElementById(config.label);
+    if (!slider || !labelEl) continue;
 
-  for (const key in settings.calibration) {
-    const slider = document.getElementById(key);
-    const label = document.getElementById(key + 'Val');
-    if (slider && label) {
-      slider.value = settings.calibration[key];
-      label.textContent = settings.calibration[key].toFixed(2);
+    let val;
+    if (config.panel === 'hsl') {
+      val = settings.hsl[config.index][config.key];
+    } else {
+      val = settings[config.panel][config.key];
     }
-  }
 
-  for (let i = 0; i < 8; i++) {
-    sliders[i].hue.value = settings.hsl[i].hue;
-    sliders[i].sat.value = settings.hsl[i].sat;
-    sliders[i].lig.value = settings.hsl[i].lig;
+    slider.value = val;
+    labelEl.textContent = config.format ? config.format(val) : val;
   }
+}
+// function restoreSliders(settings) {
+//   for (const [sliderId, config] of Object.entries(sliderMap)) {
+//     const slider = document.getElementById(sliderId);
+//     const labelEl = document.getElementById(config.label);
+//     if (!slider || !labelEl) continue;
+
+//     let val;
+//     if (config.panel === 'hsl') {
+//       const layer = images[currentImageIndex].layers[images[currentImageIndex].activeLayer];
+//       layer.settings.hsl[config.index][config.key] = val;
+//     } else {
+//       const layer = images[currentImageIndex].layers[images[currentImageIndex].activeLayer];
+//       layer.settings[config.panel][config.key] = val;
+//     }
+
+//     if (
+//       currentImageIndex === null ||
+//       !images[currentImageIndex] ||
+//       !images[currentImageIndex].layers?.[images[currentImageIndex].activeLayer]
+//     ) return;
+
+//     slider.value = val;
+//     labelEl.textContent = config.format ? config.format(val) : val;
+//   }
+// }
+
+// ################################################# LAYERS LOGIC ################################################# //
+
+const layerSelect = document.getElementById('layerSelect');
+const addLayerBtn = document.getElementById('addLayerBtn');
+const layerStatus = document.getElementById('layerStatus');
+
+
+function addLayer(name = `Layer ${images[currentImageIndex].layers.length + 1}`) {
+  const image = images[currentImageIndex];
+  image.layers.push({
+    name,
+    settings: {
+      basic: { ...defaultBasicValues },
+      calibration: { ...defaultCalibrationValues },
+      hsl: Array(8).fill().map(() => ({ hue: 0, sat: 1, lig: 1 }))
+    }
+  });
+  image.activeLayer = image.layers.length - 1;
+  updateLayerUI();
+  restoreSliders(image.layers[image.activeLayer].settings);
+  draw();
 }
 
 
+function switchLayer(index) {
+  const image = images[currentImageIndex];
+  image.activeLayer = index;
+  updateLayerUI();
+  restoreSliders(image.layers[index].settings);
+  draw();
+}
+
+
+function updateLayerUI() {
+  const image = images[currentImageIndex];
+  layerSelect.innerHTML = '';
+  image.layers.forEach((layer, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = layer.name;
+    if (i === image.activeLayer) opt.selected = true;
+    layerSelect.appendChild(opt);
+  });
+  layerStatus.textContent = `Editing: ${image.layers[image.activeLayer].name}`;
+}
+
+
+addLayerBtn.addEventListener('click', () => {
+  if (currentImageIndex !== null) addLayer();
+});
+
+layerSelect.addEventListener('change', () => {
+  const index = parseInt(layerSelect.value);
+  if (!isNaN(index)) switchLayer(index);
+});
+
+
+function selectImage(index) {
+  currentImageIndex = index;
+  const image = images[index];
+  setTextureFromImageBitmap(image.bmp);
+  updateLayerUI();
+  restoreSliders(image.layers[image.activeLayer].settings);
+  draw();
+  highlightGallery(index);
+  statusEl.textContent = `Selected: ${image.name}`;
+}
+
+
+// ################################################# END LAYERS LOGIC ################################################# //
 
 // Highlight selected thumbnail
 function highlightGallery(index) {
