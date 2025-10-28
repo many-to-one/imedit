@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <title>Lightroom-style Editor — WebGL + HTML controls</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
+<link rel="stylesheet" href="./css/main.css">
 <style>
   :root {
     --bg:#222; --card:#2d2d2d; --muted:#9aa; --accent:#6cf;
@@ -24,6 +25,54 @@
   button{background:#444;color:#fff;border:0;padding:6px 8px;border-radius:6px;cursor:pointer}
   button:hover{background:#555}
   @media(max-width:900px){body{flex-direction:column}aside{width:100%;order:2}main{order:1}}
+
+  /* layers */
+  .layer-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.layer-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  background: #222;
+  color: #eee;
+  border: 1px solid #444;
+  cursor: pointer;
+}
+
+.layer-item.active {
+  background: #0055ff;
+  color: #fff;
+}
+
+.layer-thumb {
+  width: 40px;
+  height: 30px;
+  object-fit: cover;
+  border: 1px solid #555;
+}
+
+.layer-name {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 14px;
+}
+
+.layer-name:focus {
+  outline: none;
+  background: #333;
+}
+
+.layer-controls {
+  display: flex;
+  gap: 6px;
+}
 </style>
 </head>
 <body>
@@ -200,7 +249,7 @@
       </div>
 
       <!-- Add Layer -->
-      <div class="card">
+      <!-- <div class="card">
         <h3>Layers</h3>
         <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px">
           <label for="layerSelect">Active Layer:</label>
@@ -208,7 +257,13 @@
           <button id="addLayerBtn">Add Layer</button>
         </div>
         <div id="layerStatus" style="font-size:12px; color:var(--muted)">No layer selected</div>
+      </div> -->
+      <div class="card">
+        <h3>Layers</h3>
+        <div id="layerPanel" class="layer-panel"></div>
+        <button id="addLayerBtn">+ Add Layer</button>
       </div>
+
 
 
 
@@ -786,11 +841,64 @@ function showHSL(color){
 
 //   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 // }
+
+
+// function draw() {
+//   if (!tex || currentImageIndex === null) return;
+//   const image = images[currentImageIndex];
+//   const layer = image.layers[image.activeLayer];
+//   if (layer.visible === false) {
+//     gl.clearColor(0, 0, 0, 1);
+//     gl.clear(gl.COLOR_BUFFER_BIT);
+//     return;
+//   }
+//   const s = layer.settings;
+
+//   gl.clearColor(0, 0, 0, 1);
+//   gl.clear(gl.COLOR_BUFFER_BIT);
+//   gl.useProgram(prog);
+//   gl.uniform1i(gl.getUniformLocation(prog, "u_tex"), 0);
+
+//   for (const key in s.basic) {
+//     gl.uniform1f(basicUniforms[key], s.basic[key]);
+//   }
+
+//   for (let i = 0; i < 8; i++) {
+//     gl.uniform1f(uniforms[`hue${i}`], s.hsl[i].hue);
+//     gl.uniform1f(uniforms[`sat${i}`], s.hsl[i].sat);
+//     gl.uniform1f(uniforms[`lig${i}`], s.hsl[i].lig);
+//   }
+
+//   for (const key in s.calibration) {
+//     gl.uniform1f(calUniforms[key], s.calibration[key]);
+//   }
+
+//   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+// }
 function draw() {
   if (!tex || currentImageIndex === null) return;
+
   const image = images[currentImageIndex];
-  const layer = image.layers[image.activeLayer];
-  const s = layer.settings;
+  const layers = image.layers;
+
+  if (image.layers.length === 0) {
+    image.activeLayer = null;
+    gl.clearColor(0, 0, 0, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    return;
+  }
+
+
+  // Find the topmost visible layer
+  // const visibleLayer = layers.find(layer => layer.visible);
+  const visibleLayer = layers.find(layer => layer.visible !== false);
+  if (!visibleLayer) {
+    gl.clearColor(0, 0, 0, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    return;
+  }
+
+  const s = visibleLayer.settings;
 
   gl.clearColor(0, 0, 0, 1);
   gl.clear(gl.COLOR_BUFFER_BIT);
@@ -813,6 +921,8 @@ function draw() {
 
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
+
+
 
 
 
@@ -868,6 +978,7 @@ fileInput.addEventListener('change', async () => {
         layers: [
           {
             name: 'Base',
+            visible: true, 
             settings: {
               basic: { ...defaultBasicValues },
               calibration: { ...defaultCalibrationValues },
@@ -1157,27 +1268,47 @@ function restoreSliders(settings) {
 
 // ################################################# LAYERS LOGIC ################################################# //
 
-const layerSelect = document.getElementById('layerSelect');
+// const layerSelect = document.getElementById('layerSelect');
 const addLayerBtn = document.getElementById('addLayerBtn');
 const layerStatus = document.getElementById('layerStatus');
+const layerPanel = document.getElementById('layerPanel');
 
 
+// function addLayer(name = `Layer ${images[currentImageIndex].layers.length + 1}`) {
+// console.log('addLayer click ------', name)
+//   const image = images[currentImageIndex];
+//   image.layers.push({
+//     name,
+//     settings: {
+//       basic: { ...defaultBasicValues },
+//       calibration: { ...defaultCalibrationValues },
+//       hsl: Array(8).fill().map(() => ({ hue: 0, sat: 1, lig: 1 }))
+//     }
+//   });
+//   image.activeLayer = image.layers.length - 1;
+//   updateLayerUI();
+//   restoreSliders(image.layers[image.activeLayer].settings);
+//   draw();
+// }
 function addLayer(name = `Layer ${images[currentImageIndex].layers.length + 1}`) {
-console.log('addLayer click ------', name)
   const image = images[currentImageIndex];
-  image.layers.push({
+
+  image.layers.unshift({
     name,
+    visible: true,
     settings: {
       basic: { ...defaultBasicValues },
       calibration: { ...defaultCalibrationValues },
       hsl: Array(8).fill().map(() => ({ hue: 0, sat: 1, lig: 1 }))
     }
   });
-  image.activeLayer = image.layers.length - 1;
-  updateLayerUI();
-  restoreSliders(image.layers[image.activeLayer].settings);
-  draw();
+
+  image.activeLayer = 0; // newest layer becomes active
+  updateLayerUI();       // re-render layer stack
+  restoreSliders(image.layers[0].settings); // update sliders
+  draw();                // re-render canvas
 }
+
 
 
 function switchLayer(index) {
@@ -1189,28 +1320,118 @@ function switchLayer(index) {
 }
 
 
+// function updateLayerUI() {
+//   const image = images[currentImageIndex];
+//   layerSelect.innerHTML = '';
+//   image.layers.forEach((layer, i) => {
+//     const opt = document.createElement('option');
+//     opt.value = i;
+//     opt.textContent = layer.name;
+//     if (i === image.activeLayer) opt.selected = true;
+//     layerSelect.appendChild(opt);
+//   });
+//   layerStatus.textContent = `Editing: ${image.layers[image.activeLayer].name}`;
+// }
 function updateLayerUI() {
   const image = images[currentImageIndex];
-  layerSelect.innerHTML = '';
+  layerPanel.innerHTML = '';
+
   image.layers.forEach((layer, i) => {
-    const opt = document.createElement('option');
-    opt.value = i;
-    opt.textContent = layer.name;
-    if (i === image.activeLayer) opt.selected = true;
-    layerSelect.appendChild(opt);
+    const div = document.createElement('div');
+    div.className = 'layer-item' + (i === image.activeLayer ? ' active' : '');
+    div.onclick = () => switchLayer(i);
+
+    // Thumbnail
+    const thumb = document.createElement('img');
+    thumb.className = 'layer-thumb';
+    const canvas = document.createElement('canvas');
+    canvas.width = 40;
+    canvas.height = 30;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(image.bmp, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(blob => {
+      thumb.src = URL.createObjectURL(blob);
+    }, 'image/png');
+
+    // Editable name
+    const nameInput = document.createElement('input');
+    nameInput.className = 'layer-name';
+    nameInput.value = layer.name;
+    nameInput.oninput = (e) => {
+      layer.name = e.target.value;
+      // updateLayerUI(); // re-render to reflect name
+    };
+    
+    nameInput.onclick = (e) => {
+      e.stopPropagation(); // prevent layer switch
+    };
+
+    nameInput.onmousedown = (e) => {
+      e.stopPropagation(); // prevent parent from hijacking focus
+    };
+
+    nameInput.onkeydown = (e) => {
+      e.stopPropagation(); // prevent accidental bubbling
+    };
+
+    // Controls
+    const controls = document.createElement('div');
+    controls.className = 'layer-controls';
+
+    const eye = document.createElement('button');
+    eye.textContent = layer.visible === false ? '🙈' : '👁️';
+    eye.onclick = (e) => {
+      e.stopPropagation();
+      layer.visible = !layer.visible;
+      updateLayerUI();
+      draw();
+    };
+
+    const del = document.createElement('button');
+    del.textContent = '🗑️';
+    del.onclick = (e) => {
+      e.stopPropagation();
+      image.layers.splice(i, 1);
+      if (image.activeLayer >= image.layers.length) image.activeLayer = image.layers.length - 1;
+      updateLayerUI();
+      restoreSliders(image.layers[image.activeLayer].settings);
+      draw();
+    };
+
+    controls.appendChild(eye);
+    controls.appendChild(del);
+
+    div.appendChild(thumb);
+    div.appendChild(nameInput);
+    div.appendChild(controls);
+    layerPanel.appendChild(div);
   });
-  layerStatus.textContent = `Editing: ${image.layers[image.activeLayer].name}`;
 }
+
+
 
 
 addLayerBtn.addEventListener('click', () => {
   if (currentImageIndex !== null) addLayer();
 });
-
-layerSelect.addEventListener('change', () => {
-  const index = parseInt(layerSelect.value);
-  if (!isNaN(index)) switchLayer(index);
-});
+// addLayerBtn.onclick = () => {
+//   if (currentImageIndex !== null) addLayer();
+//   const image = images[currentImageIndex];
+//   const newLayer = {
+//     name: `Layer ${image.layers.length + 1}`,
+//     visible: true,
+//     settings: {
+//       basic: { ...defaultBasicValues },
+//       calibration: { ...defaultCalibrationValues },
+//       hsl: Array(8).fill().map(() => ({ hue: 0, sat: 1, lig: 1 }))
+//     }
+//   };
+//   image.layers.push(newLayer);
+//   image.activeLayer = image.layers.length - 1;
+//   updateLayerUI();
+//   restoreSliders(newLayer.settings);
+//   draw();
+// };
 
 
 function selectImage(index) {
