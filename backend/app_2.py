@@ -8,21 +8,33 @@ import io, os, uuid, base64
 import rawpy
 
 app = FastAPI()
+
+# Serve static files (CSS, JS, etc.)
+# Mount static files at /static
+app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
+
+# Serve index.html and other frontend files
 # app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
 
 UPLOAD_DIR = "uploads"
 RESULT_DIR = "results"
+# STATIC_DIR = "static"
+
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(RESULT_DIR, exist_ok=True)
+# os.makedirs(STATIC_DIR, exist_ok=True)
 
 # Keep current image in memory as PIL Image (RGBA)
 CURRENT_IMAGE = None
+
+print("Static path:", os.path.abspath("frontend/static"))
 
 @app.get("/")
 async def index():
     """Serve the HTML with sliders."""
     with open("frontend/index_gpu.html", "r", encoding="utf-8") as f:
         return HTMLResponse(f.read())
+
 
 
 @app.post("/upload")
