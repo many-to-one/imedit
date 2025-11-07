@@ -5,13 +5,15 @@ const fileTypeSelect = document.getElementById('fileTypeSelect');
 async function saveWebGLCanvas(filenameBase = 'canvas-image') {
   const width = canvas.width;
   const height = canvas.height;
-  const gl = canvas.getContext('webgl');
+  // const gl = canvas.getContext('webgl');
+  const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true, alpha: true });
 
   saveStatus.textContent = 'Preparing download…';
 
   // Read pixels
   const pixels = new Uint8Array(width * height * 4);
   gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+
 
   // Offscreen canvas
   const off = document.createElement('canvas');

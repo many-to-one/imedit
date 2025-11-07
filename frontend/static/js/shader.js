@@ -191,6 +191,10 @@ void main(){
   // 🧠 Apply mask alpha
   float maskAlpha = texture2D(u_mask, v_uv).a;
   gl_FragColor = vec4(rgb, tex.a * maskAlpha);
+  // vec4 color = texture2D(u_tex, v_texCoord);
+  // float mask = texture2D(u_mask, v_texCoord).r;  // assuming mask is grayscale
+  // gl_FragColor = vec4(color.rgb, color.a * mask);
+
 }
 `;
 

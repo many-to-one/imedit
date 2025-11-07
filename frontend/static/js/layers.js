@@ -107,18 +107,44 @@ function updateLayerUI() {
       addMaskOption.textContent = 'Add Mask';
       addMaskOption.onclick = ((layerRef, bmpRef) => (e) => {
         e.stopPropagation();
+        // if (!layerRef.mask) {
+        //   const maskCanvas = document.createElement('canvas');
+        //   maskCanvas.width = bmpRef.width;
+        //   maskCanvas.height = bmpRef.height;
+        //   const maskCtx = maskCanvas.getContext('2d');
+        //   maskCtx.fillStyle = 'rgba(255,255,255,1)';
+        //   maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+        //   layerRef.mask = maskCanvas;
+        //   updateLayerUI();
+        //   restoreSliders(image.layers[image.activeLayer]?.settings);
+        //   draw();
+        // }
         if (!layerRef.mask) {
           const maskCanvas = document.createElement('canvas');
           maskCanvas.width = bmpRef.width;
           maskCanvas.height = bmpRef.height;
+
           const maskCtx = maskCanvas.getContext('2d');
           maskCtx.fillStyle = 'rgba(255,255,255,1)';
           maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+
           layerRef.mask = maskCanvas;
+
+          // ✅ Create corresponding WebGL texture
+          layerRef.maskTex = gl.createTexture();
+          gl.bindTexture(gl.TEXTURE_2D, layerRef.maskTex);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, maskCanvas);
+
           updateLayerUI();
           restoreSliders(image.layers[image.activeLayer]?.settings);
           draw();
         }
+
         menu.style.display = 'none';
       })(layer, image.bmp); // ← capture bmp directly
 

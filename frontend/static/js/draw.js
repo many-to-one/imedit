@@ -1,99 +1,56 @@
-// function draw() {
-//   if (!tex || currentImageIndex === null) return;
-
-//   const image = images[currentImageIndex];
-//   const layers = image.layers;
-
-//   if (image.layers.length === 0) {
-//     image.activeLayer = null;
-//     gl.clearColor(0, 0, 0, 1);
-//     gl.clear(gl.COLOR_BUFFER_BIT);
-//     return;
-//   }
-
-
-//   // Find the topmost visible layer
-//   // const visibleLayer = layers.find(layer => layer.visible);
-//   const visibleLayer = layers.find(layer => layer.visible !== false);
-//   if (!visibleLayer) {
-//     gl.clearColor(0, 0, 0, 1);
-//     gl.clear(gl.COLOR_BUFFER_BIT);
-//     return;
-//   }
-
-//   const s = visibleLayer.settings;
-
-//   gl.clearColor(0, 0, 0, 1);
-//   gl.clear(gl.COLOR_BUFFER_BIT);
-//   gl.useProgram(prog);
-//   gl.uniform1i(gl.getUniformLocation(prog, "u_tex"), 0);
-
-//   for (const key in s.basic) {
-//     gl.uniform1f(basicUniforms[key], s.basic[key]);
-//   }
-
-//   for (let i = 0; i < 8; i++) {
-//     gl.uniform1f(uniforms[`hue${i}`], s.hsl[i].hue);
-//     gl.uniform1f(uniforms[`sat${i}`], s.hsl[i].sat);
-//     gl.uniform1f(uniforms[`lig${i}`], s.hsl[i].lig);
-//   }
-
-//   for (const key in s.calibration) {
-//     gl.uniform1f(calUniforms[key], s.calibration[key]);
-//   }
-
-//   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-// }
-
-
 let tex = null;
-// let maskTex = null;
-// layer.maskTex = gl.createTexture();
-
 
 function draw() {
   if (!tex || currentImageIndex === null) return;
 
   const image = images[currentImageIndex];
-  const layer = image.layers.find(l => l.visible);
+  const visibleLayers = image.layers.filter(l => l.visible);
 
-  if (!layer) {
-    gl.clearColor(0, 0, 0, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    return;
-  }
-
-  const s = layer.settings;
-
+  // Clear transparent background (not black)
   gl.viewport(0, 0, canvas.width, canvas.height);
-  gl.clearColor(0, 0, 0, 1);
+  gl.clearColor(0, 0, 0, 0);
   gl.clear(gl.COLOR_BUFFER_BIT);
+
+  // ✅ Enable alpha blending so layers mix correctly
+  gl.enable(gl.BLEND);
+  gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+
   gl.useProgram(prog);
 
-  // Bind image texture
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.uniform1i(gl.getUniformLocation(prog, "u_tex"), 0);
+  // Draw layers from bottom → top
+  for (let i = visibleLayers.length - 1; i >= 0; i--) {
+    const layer = visibleLayers[i];
+    const s = layer.settings;
 
-  // Bind mask texture (already uploaded)
-  gl.activeTexture(gl.TEXTURE1);
-  gl.bindTexture(gl.TEXTURE_2D, layer.maskTex);
-  gl.uniform1i(gl.getUniformLocation(prog, "u_mask"), 1);
+    // Bind main image texture
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.uniform1i(gl.getUniformLocation(prog, "u_tex"), 0);
 
-  // Set uniforms
-  for (const key in s.basic) {
-    gl.uniform1f(basicUniforms[key], s.basic[key]);
+    // Bind mask texture if it exists
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, layer.maskTex || null);
+    gl.uniform1i(gl.getUniformLocation(prog, "u_mask"), 1);
+
+    // Set shader uniforms
+    for (const key in s.basic) {
+      gl.uniform1f(basicUniforms[key], s.basic[key]);
+    }
+
+    for (let j = 0; j < 8; j++) {
+      gl.uniform1f(uniforms[`hue${j}`], s.hsl[j].hue);
+      gl.uniform1f(uniforms[`sat${j}`], s.hsl[j].sat);
+      gl.uniform1f(uniforms[`lig${j}`], s.hsl[j].lig);
+    }
+
+    for (const key in s.calibration) {
+      gl.uniform1f(calUniforms[key], s.calibration[key]);
+    }
+
+    // Draw the quad for this layer
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
-  for (let i = 0; i < 8; i++) {
-    gl.uniform1f(uniforms[`hue${i}`], s.hsl[i].hue);
-    gl.uniform1f(uniforms[`sat${i}`], s.hsl[i].sat);
-    gl.uniform1f(uniforms[`lig${i}`], s.hsl[i].lig);
-  }
-
-  for (const key in s.calibration) {
-    gl.uniform1f(calUniforms[key], s.calibration[key]);
-  }
-
-  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  // Disable blending after draw (optional cleanup)
+  gl.disable(gl.BLEND);
 }

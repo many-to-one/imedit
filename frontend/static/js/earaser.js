@@ -24,13 +24,13 @@ document.getElementById('powerSlider').oninput = (e) => {
 canvas.addEventListener('mousedown', e => {
   if (toolMode !== 'eraser') return;
   isErasing = true;
-  eraseAt(e.offsetX, e.offsetY);
+  const rect = canvas.getBoundingClientRect();
+  const cx = e.clientX - rect.left;
+  const cy = e.clientY - rect.top;
+  eraseAt(cx, cy);
 });
 
-// canvas.addEventListener('mousemove', e => {
-//   if (toolMode !== 'eraser' || !isErasing) return;
-//   eraseAt(e.offsetX, e.offsetY);
-// });
+
 const eraserCursor = document.getElementById('eraserCursor');
 let eraserRadius = 20;
 
@@ -44,8 +44,12 @@ canvas.onmousemove = (e) => {
     eraserCursor.style.height = `${eraserRadius * 2}px`;
     eraserCursor.style.left = `${x - eraserRadius}px`;
     eraserCursor.style.top = `${y - eraserRadius}px`;
+    eraserCursor.style.border = '1px solid red';
+    // console.log('eraserCursor active');
+    // console.log('eraserCursor top', eraserCursor.style.top);
   } else {
     eraserCursor.style.display = 'none';
+    console.log('eraserCursor none');
   }
 
   if (toolMode === 'eraser' && isErasing) {
@@ -55,6 +59,8 @@ canvas.onmousemove = (e) => {
     eraseAt(cx, cy);
   }
 };
+
+
 
 canvas.addEventListener('mouseup', () => {
   isErasing = false;
@@ -84,14 +90,11 @@ function eraseAt(x, y) {
 
   // Correct scaling only — no offset
   const rect = canvas.getBoundingClientRect();
-  // const scaleX = layer.mask.width / rect.width;
-  // const scaleY = layer.mask.height / rect.height;
-  // const normX = x * scaleX;
-  // const normY = y * scaleY;
   const scaleX = layer.mask.width / rect.width;
   const scaleY = layer.mask.height / rect.height;
   const normX = x * scaleX;
-  const normY = layer.mask.height - (y * scaleY); // ← flip Y
+  const normY = y * scaleY;
+  // const normY = layer.mask.height - (y * scaleY); // ← flip Y
 
 
   const ctx = layer.mask.getContext('2d');
