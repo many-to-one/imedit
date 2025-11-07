@@ -3,6 +3,8 @@
 
 let toolMode = 'paint'; // default
 let isErasing = false;
+let eraserRadius = 80; // ✅ default radius value
+let eraserPower = 1.0; // ✅ already defined later, but moved up for clarity
 
 const eraserBtn = document.getElementById('eraserBtn');
 eraserBtn.onclick = () => {
@@ -15,10 +17,52 @@ document.getElementById('radiusSlider').oninput = (e) => {
   eraserRadius = parseInt(e.target.value);
 };
 
-let eraserPower = 1.0;
 document.getElementById('powerSlider').oninput = (e) => {
   eraserPower = parseFloat(e.target.value);
 };
+
+
+// 🟢 Create a custom circle cursor overlay
+const brushCursor = document.createElement('div');
+brushCursor.style.position = 'fixed';
+brushCursor.style.pointerEvents = 'none';
+brushCursor.style.zIndex = '9999';
+brushCursor.style.width = `${eraserRadius * 2}px`;
+brushCursor.style.height = `${eraserRadius * 2}px`;
+brushCursor.style.border = '1px solid rgba(255, 0, 0, 0.8)';
+brushCursor.style.borderRadius = '50%';
+brushCursor.style.transform = 'translate(-50%, -50%)';
+brushCursor.style.display = 'none';
+brushCursor.style.mixBlendMode = 'difference'; // so it's visible on any background
+document.body.appendChild(brushCursor);
+
+
+// 🔹 Update brush radius live when slider changes
+document.getElementById('radiusSlider').addEventListener('input', (e) => {
+  eraserRadius = parseInt(e.target.value);
+  brushCursor.style.width = `${eraserRadius * 2}px`;
+  brushCursor.style.height = `${eraserRadius * 2}px`;
+});
+
+// 🔹 Toggle visibility when switching tool
+// eraserBtn.addEventListener('click', () => {
+//   toolMode = toolMode === 'eraser' ? 'paint' : 'eraser';
+//   if (toolMode === 'eraser') {
+//     canvas.style.cursor = 'none';       // hide default
+//     brushCursor.style.display = 'block';
+//   } else {
+//     canvas.style.cursor = 'default';
+//     brushCursor.style.display = 'none';
+//   }
+// });
+
+// 🔹 Follow mouse
+// canvas.addEventListener('mousemove', (e) => {
+//   if (toolMode === 'eraser') {
+//     brushCursor.style.left = `${e.clientX}px`;
+//     brushCursor.style.top = `${e.clientY}px`;
+//   }
+// });
 
 
 canvas.addEventListener('mousedown', e => {
@@ -30,27 +74,11 @@ canvas.addEventListener('mousedown', e => {
   eraseAt(cx, cy);
 });
 
-
-const eraserCursor = document.getElementById('eraserCursor');
-let eraserRadius = 20;
-
 canvas.onmousemove = (e) => {
   const x = e.clientX;
   const y = e.clientY;
-
-  if (toolMode === 'eraser') {
-    eraserCursor.style.display = 'block';
-    eraserCursor.style.width = `${eraserRadius * 2}px`;
-    eraserCursor.style.height = `${eraserRadius * 2}px`;
-    eraserCursor.style.left = `${x - eraserRadius}px`;
-    eraserCursor.style.top = `${y - eraserRadius}px`;
-    eraserCursor.style.border = '1px solid red';
-    // console.log('eraserCursor active');
-    // console.log('eraserCursor top', eraserCursor.style.top);
-  } else {
-    eraserCursor.style.display = 'none';
-    console.log('eraserCursor none');
-  }
+  brushCursor.style.left = `${e.clientX}px`;
+  brushCursor.style.top = `${e.clientY}px`;
 
   if (toolMode === 'eraser' && isErasing) {
     const rect = canvas.getBoundingClientRect();
