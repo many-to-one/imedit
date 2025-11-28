@@ -83,16 +83,66 @@ function updateLayerUI() {
 
     const del = document.createElement('button');
     del.textContent = '🗑️';
+
+    // del.onclick = (e) => {
+    //   e.stopPropagation();
+    //   image.layers.splice(i, 1);
+
+    //   // Jeśli nie ma już żadnych warstw → usuń też główny obraz
+    //   if (image.layers.length === 0) {
+    //     image.bmp = null; // usuwamy bitmapę
+
+    //     gl.viewport(0, 0, canvas.width, canvas.height);
+    //     gl.clearColor(0, 0, 0, 0);
+    //     gl.clear(gl.COLOR_BUFFER_BIT);
+    //   }
+
+    //   if (image.activeLayer >= image.layers.length) {
+    //     image.activeLayer = image.layers.length - 1;
+    //   }
+
+    //   updateLayerUI();
+    //   if (image.layers[image.activeLayer]) {
+    //     restoreSliders(image.layers[image.activeLayer].settings);
+    //   }
+    //   draw();
+    // };
+
     del.onclick = (e) => {
-      e.stopPropagation();
-      image.layers.splice(i, 1);
-      if (image.activeLayer >= image.layers.length) {
-        image.activeLayer = image.layers.length - 1;
-      }
-      updateLayerUI();
-      restoreSliders(image.layers[image.activeLayer]?.settings);
-      draw();
-    };
+  e.stopPropagation();
+  image.layers.splice(i, 1);
+
+  // Jeśli nie ma już żadnych warstw → usuń cały obraz z galerii i z tablicy
+  if (image.layers.length === 0) {
+    const imgIndex = images.indexOf(image);
+    if (imgIndex !== -1) {
+      removeFromGallery(imgIndex);
+      images.splice(imgIndex, 1); // usuń z tablicy images
+    }
+
+    // wyczyść canvas
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    currentImageIndex = null;
+    updateLayerUI();
+    statusEl.textContent = "No image selected";
+    return; // zakończ, bo obraz został usunięty
+  }
+
+  if (image.activeLayer >= image.layers.length) {
+    image.activeLayer = image.layers.length - 1;
+  }
+
+  updateLayerUI();
+  if (image.layers[image.activeLayer]) {
+    restoreSliders(image.layers[image.activeLayer].settings);
+  }
+  draw();
+};
+
+
 
     // Menu (⋮)
     const menuBtn = document.createElement('button');
@@ -107,18 +157,6 @@ function updateLayerUI() {
       addMaskOption.textContent = 'Add Mask';
       addMaskOption.onclick = ((layerRef, bmpRef) => (e) => {
         e.stopPropagation();
-        // if (!layerRef.mask) {
-        //   const maskCanvas = document.createElement('canvas');
-        //   maskCanvas.width = bmpRef.width;
-        //   maskCanvas.height = bmpRef.height;
-        //   const maskCtx = maskCanvas.getContext('2d');
-        //   maskCtx.fillStyle = 'rgba(255,255,255,1)';
-        //   maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
-        //   layerRef.mask = maskCanvas;
-        //   updateLayerUI();
-        //   restoreSliders(image.layers[image.activeLayer]?.settings);
-        //   draw();
-        // }
         if (!layerRef.mask) {
           const maskCanvas = document.createElement('canvas');
           maskCanvas.width = bmpRef.width;

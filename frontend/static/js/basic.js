@@ -156,6 +156,25 @@ function showHSL(color){
 
 
 // Add thumbnail to gallery
+// function addToGallery(index) {
+//   const bmp = images[index].bmp;
+//   const thumbCanvas = document.createElement('canvas');
+//   thumbCanvas.width = 80;
+//   thumbCanvas.height = 60;
+//   const ctx = thumbCanvas.getContext('2d');
+//   ctx.drawImage(bmp, 0, 0, thumbCanvas.width, thumbCanvas.height);
+//   thumbCanvas.toBlob(blob => {
+//     const img = document.createElement('img');
+//     img.width = 80;
+//     img.height = 60;
+//     img.style.cursor = 'pointer';
+//     img.style.border = '2px solid transparent';
+//     img.src = URL.createObjectURL(blob);
+//     img.onclick = () => selectImage(index);
+//     galleryEl.appendChild(img);
+//   }, 'image/png');
+// }
+
 function addToGallery(index) {
   const bmp = images[index].bmp;
   const thumbCanvas = document.createElement('canvas');
@@ -170,36 +189,21 @@ function addToGallery(index) {
     img.style.cursor = 'pointer';
     img.style.border = '2px solid transparent';
     img.src = URL.createObjectURL(blob);
+    img.dataset.index = index;   // ✅ zapisz indeks
     img.onclick = () => selectImage(index);
     galleryEl.appendChild(img);
   }, 'image/png');
 }
 
+function removeFromGallery(index) {
+  const thumb = galleryEl.querySelector(`img[data-index="${index}"]`);
+  if (thumb) {
+    galleryEl.removeChild(thumb);
+  }
+}
 
-// Select image
-// function selectImage(index) {
-//   currentImageIndex = index;
-//   const image = images[index];
-//   const settings = image.settings || {};
-//   const layer = image.layers[image.activeLayer];
 
-//   setTextureFromImageBitmap(image.bmp, layer);
-//   applySettings(settings); // ← apply without overwriting
-//   draw();
-//   highlightGallery(index);
-//   statusEl.textContent = `Selected: ${image.name}`;
 
-//   // Restore sliders
-//   for (const [sliderId, { key, label, format }] of Object.entries(sliderMap)) {
-//     const slider = document.getElementById(sliderId);
-//     const labelEl = document.getElementById(label);
-//     if (!slider || !labelEl) continue;
-
-//     const val = settings[key] ?? parseFloat(slider.defaultValue);
-//     slider.value = val;
-//     labelEl.textContent = format ? format(val) : val;
-//   }
-// }
 function selectImage(index) {
   currentImageIndex = index;
   const image = images[index];
