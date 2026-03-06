@@ -32,7 +32,7 @@ print("Static path:", os.path.abspath("frontend/static"))
 @app.get("/")
 async def index():
     """Serve the HTML with sliders."""
-    with open("frontend/index_gpu.html", "r", encoding="utf-8") as f:
+    with open("frontend/index.html", "r", encoding="utf-8") as f:
         return HTMLResponse(f.read())
 
 

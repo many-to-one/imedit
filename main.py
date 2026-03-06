@@ -21,7 +21,7 @@ def start_backend():
     uvicorn.run(
         "backend.app_2:app",  # assuming your FastAPI app is in backend/app.py
         host="127.0.0.1",
-        port=8000,
+        port=8005,
         reload=False,  # disable reload for production/pywebview
         log_level="info"
     )
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     # Start pywebview
     webview.create_window(
         "My App",
-        "http://127.0.0.1:8000",  # served by FastAPI
+        "http://127.0.0.1:8005",  # served by FastAPI
         width=1200,
         height=800,
         resizable=True,

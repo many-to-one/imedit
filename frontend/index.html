@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <link rel="stylesheet" href="/static/css/layers.css">
 <link rel="stylesheet" href="/static/css/main.css">
+<link rel="stylesheet" href="/static/css/toolpanel.css">
 
 </head>
 <body>
@@ -20,11 +21,37 @@
         >
 
       <div id="status" style="font-size:12px;color:var(--muted);margin-top:6px">No image loaded</div>
-      <div id="eraserCursor"></div>
-      <input type="range" id="radiusSlider" min="5" max="100" value="20">
-      <input type="range" id="powerSlider" min="0" max="1" step="0.01" value="1">
+      
+      <!-- TOOLBOX (lewy panel jak w Photoshopie) -->
+        <div id="toolPanel">
+        <button class="toolBtn" id="tool-eraser" title="Eraser">
+            <img src="static/icons/eraser.svg" alt="eraser">
+        </button>
 
-      <button id="eraserBtn">🧽 Eraser</button>
+        <button class="toolBtn" id="tool-brush" title="Brush">
+            <img src="static/icons/brush.svg" alt="brush">
+        </button>
+
+        <button class="toolBtn" id="tool-move" title="Move">
+            <img src="icons/move.svg" alt="move">
+        </button>
+
+        <button class="toolBtn" id="tool-zoom" title="Zoom">
+            <img src="icons/zoom.svg" alt="zoom">
+        </button>
+        </div>
+
+        <!-- PANEL USTAWIEŃ AKTYWNEGO NARZĘDZIA -->
+        <div id="toolSettings">
+        <div id="eraserSettings" class="settingsGroup" style="display:none">
+            <label>Brush Radius</label>
+            <input type="range" id="radiusSlider" min="5" max="150" value="80">
+
+            <label>Erase Power</label>
+            <input type="range" id="powerSlider" min="0" max="1" step="0.01" value="1">
+        </div>
+        </div>
+
     </div>
 
 
